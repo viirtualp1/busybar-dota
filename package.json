@@ -1,0 +1,54 @@
+{
+  "name": "busybar-dota",
+  "version": "1.0.0",
+  "description": "Live Dota 2 pro match on BUSY Bar",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "busybar-dota": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "keywords": [
+    "dota2",
+    "the-international",
+    "esports",
+    "busy-bar",
+    "busybar",
+    "led"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --import tsx --test \"test/**/*.test.ts\"",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "dev": "tsx src/index.ts",
+    "demo": "tsx src/index.ts --demo",
+    "start": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@busy-app/busy-lib": "^0.18.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.13.3",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0"
+  }
+}
