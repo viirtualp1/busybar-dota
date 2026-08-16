@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { backElements } from '../src/bar/elements.js';
-import { BACK } from '../src/bar/layout.js';
-import { HeroCatalog } from '../src/dota/heroes.js';
 import { DemoSource } from '../src/dota/source.js';
 import {
   emptyTeam,
@@ -12,8 +10,9 @@ import {
 } from '../src/dota/types.js';
 import { buildFrame } from '../src/view/frame.js';
 
-const heroes = new HeroCatalog();
-const options = { heroes, maxRows: BACK.maxRows, flash: null, idleNote: '' } as const;
+import { frameOptions, pairOf } from './helpers.js';
+
+const options = frameOptions();
 
 function drafting(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
@@ -51,16 +50,16 @@ test('a source with no draft data never enters draft mode', () => {
 
 test('the front says DRAFT instead of a meaningless countdown', () => {
   const frame = buildFrame(drafting(), options);
-  assert.equal(frame.drafting, true);
+  assert.equal(frame.mode, 'draft');
   assert.equal(frame.clockText, 'DRAFT');
 });
 
 test('draft rows list picks in order, one column per team', () => {
   const frame = buildFrame(drafting(), options);
-  assert.equal(frame.backRows[0]?.left?.stats, '#1');
-  assert.equal(frame.backRows[1]?.left?.stats, '#2');
+  assert.equal(pairOf(frame.backRows[0]).left?.stats, '#1');
+  assert.equal(pairOf(frame.backRows[1]).left?.stats, '#2');
   // Dire only picked once, so its second slot stays empty rather than shifting up.
-  assert.equal(frame.backRows[1]?.right, null);
+  assert.equal(pairOf(frame.backRows[1]).right, null);
 });
 
 test('the ban summary counts both sides and names the latest ban', () => {
@@ -72,7 +71,7 @@ test('the ban summary counts both sides and names the latest ban', () => {
 test('the roster replaces the draft once the game is running', () => {
   const running = drafting({ gameTimeSec: 300 });
   const frame = buildFrame(running, options);
-  assert.equal(frame.drafting, false);
+  assert.equal(frame.mode, 'live');
   assert.match(frame.clockText, /^5:00$/);
 });
 

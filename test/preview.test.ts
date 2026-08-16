@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { backElements, frontElements } from '../src/bar/elements.js';
 import { BACK, FRONT } from '../src/bar/layout.js';
-import { HeroCatalog } from '../src/dota/heroes.js';
 import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types.js';
 import { Bitmap, parseColor } from '../src/preview/png.js';
 import { renderBack, renderFront } from '../src/preview/raster.js';
 import { buildFrame } from '../src/view/frame.js';
 
-const heroes = new HeroCatalog();
-const options = { heroes, maxRows: BACK.maxRows, flash: null, idleNote: '' } as const;
+import { frameOptions } from './helpers.js';
+
+const options = frameOptions();
 
 function snapshot(): MatchSnapshot {
   return {

@@ -5,6 +5,7 @@ import type { Config } from './config.js';
 import { detectEvent, initialEventState, type EventState } from './domain/events.js';
 import { FlashWindow } from './domain/flash.js';
 import type { HeroCatalog } from './dota/heroes.js';
+import type { Schedule, ScheduleSource } from './dota/schedule/index.js';
 import type { MatchSource } from './dota/source.js';
 import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
 import { buildFrame } from './view/frame.js';
@@ -17,6 +18,7 @@ export type Logger = {
 export type AppDeps = {
   config: Config;
   source: MatchSource;
+  schedule: ScheduleSource;
   heroes: HeroCatalog;
   display: BarDisplay;
   logger?: Logger;
@@ -25,15 +27,25 @@ export type AppDeps = {
 const BAR_RETRY_MS = 2000;
 const REPEAT_WARNING_MS = 30_000;
 
+/**
+ * Schedules move on the order of hours, so they are polled far more slowly than
+ * the live match — and only while nothing is live, which is the only time the
+ * answer is on screen.
+ */
+const SCHEDULE_POLL_MS = 120_000;
+
 export class App {
   private readonly config: Config;
   private readonly source: MatchSource;
+  private readonly scheduleSource: ScheduleSource;
   private readonly heroes: HeroCatalog;
   private readonly display: BarDisplay;
   private readonly logger: Logger;
   private readonly flash = new FlashWindow();
 
   private snapshot: MatchSnapshot = idleSnapshot();
+  private schedule: Schedule | null = null;
+  private scheduleFetchedAt = 0;
   private events: EventState = initialEventState;
   private idleNote = 'waiting for the next game';
   private running = false;
@@ -43,6 +55,7 @@ export class App {
   constructor(deps: AppDeps) {
     this.config = deps.config;
     this.source = deps.source;
+    this.scheduleSource = deps.schedule;
     this.heroes = deps.heroes;
     this.display = deps.display;
     this.logger = deps.logger ?? console;
@@ -108,6 +121,9 @@ export class App {
         this.idleNote = next ? '' : 'waiting for the next game';
         this.handleEvents();
         this.warnings.delete('source');
+        if (!next) {
+          await this.refreshSchedule();
+        }
       } catch (error) {
         // Keep the last good frame on screen: a blank bar during a five-second
         // upstream hiccup is worse than slightly stale numbers.
@@ -116,6 +132,27 @@ export class App {
       }
 
       await this.sleep(this.config.pollMs);
+    }
+  }
+
+  /** Kept out of the main poll rhythm: a bracket does not change every 5 seconds. */
+  private async refreshSchedule(): Promise<void> {
+    const now = Date.now();
+    if (this.schedule && now - this.scheduleFetchedAt < SCHEDULE_POLL_MS) {
+      return;
+    }
+    try {
+      this.schedule = await this.scheduleSource.poll();
+      this.scheduleFetchedAt = now;
+      this.warnings.delete('schedule');
+    } catch (error) {
+      // A missing schedule is not fatal — the display falls back to the plain
+      // idle screen rather than showing a stale countdown to a match that
+      // already started.
+      this.warnRepeated(
+        'schedule',
+        `${this.scheduleSource.label}: ${errorMessage(error)}`,
+      );
     }
   }
 
@@ -143,6 +180,8 @@ export class App {
             heroes: this.heroes,
             maxRows: BACK.maxRows,
             flash: this.flash.active(now),
+            nowEpochMs: Date.now(),
+            schedule: this.schedule,
             idleNote: this.idleNote,
           }),
         );

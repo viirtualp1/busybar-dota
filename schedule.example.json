@@ -1,0 +1,46 @@
+{
+  "_comment": [
+    "Copy to schedule.json and edit while the app runs — it re-reads on change.",
+    "Check it with: npm run schedule:check",
+    "",
+    "timezone + date are set ONCE for the whole file, so each match is just a",
+    "  wall-clock time. Set timezone to whatever zone your SOURCE shows —",
+    "  Liquipedia converts to your own zone when logged in, so copying what you",
+    "  see is usually right. IANA name (Asia/Tbilisi) or offset (+04:00).",
+    "  Put date on a match to override the file default for a late-night slot.",
+    "",
+    "teams is one field: \"Team A vs Team B\". Tags and the short stage label",
+    "  (Upper Bracket R2 -> UB2) are derived; set tagA/tagB/stageShort to override.",
+    "",
+    "The bracket is derived from these matches, so there is only one list to keep",
+    "  straight. Add \"score\": \"2-0\" when a match ends: it drops out of the",
+    "  countdown and shows its result in the bracket. One edit per finished game.",
+    "  Add a \"bracket\" array only if you want to override that entirely.",
+    "",
+    "The bar shows start times in YOUR local zone, not the tournament's."
+  ],
+  "timezone": "Asia/Shanghai",
+  "date": "2026-08-20",
+  "matches": [
+    {
+      "teams": "IW vs TSpirit",
+      "time": "10:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3,
+      "score": "2-1"
+    },
+    {
+      "teams": "VISION vs BB",
+      "time": "13:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3
+    },
+    {
+      "teams": "TBD vs TBD",
+      "time": "10:00",
+      "date": "2026-08-21",
+      "stage": "Upper Bracket Semifinals",
+      "bo": 3
+    }
+  ]
+}

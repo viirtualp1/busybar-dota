@@ -37,7 +37,9 @@
     "dev": "tsx src/index.ts",
     "demo": "tsx src/index.ts --demo",
     "start": "npm run build && node dist/index.js",
-    "shot": "tsx src/preview.ts"
+    "shot": "tsx src/preview.ts",
+    "stratz:check": "tsx src/stratz-check.ts",
+    "schedule:check": "tsx src/schedule-check.ts"
   },
   "dependencies": {
     "@busy-app/busy-lib": "^0.18.0"

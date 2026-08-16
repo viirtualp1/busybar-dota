@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { ScheduleKind } from './dota/schedule/index.js';
 
 export type Config = {
   busyAddr: string;
@@ -15,6 +16,9 @@ export type Config = {
   frameMs: number;
   requestTimeoutMs: number;
   demo: boolean;
+  scheduleKind: ScheduleKind;
+  scheduleFile: string;
+  stratzToken: string;
 };
 
 export type LoadedConfig = {
@@ -120,6 +124,14 @@ export function loadConfig(
 
   const steamApiKey = read('STEAM_API_KEY');
   const demo = argv.includes('--demo') || read('DEMO') === '1';
+
+  const scheduleFile = read('SCHEDULE_FILE') || 'schedule.json';
+  const stratzToken = read('STRATZ_TOKEN');
+  const scheduleKind = readScheduleKind(
+    read('SCHEDULE_SOURCE'),
+    { demo, scheduleFile, stratzToken },
+    warnings,
+  );
   if (!steamApiKey && !demo) {
     warnings.push(
       'No STEAM_API_KEY: falling back to OpenDota /live, which has no per-player stats. ' +
@@ -147,6 +159,63 @@ export function loadConfig(
         LIMITS.requestTimeoutMs,
       ),
       demo,
+      scheduleKind,
+      scheduleFile,
+      stratzToken,
     },
   };
+}
+
+/**
+ * Picks the schedule source.
+ *
+ * Defaults to the hand-maintained JSON file when one exists, because that is
+ * the only option that works without credentials today — Liquipedia moved
+ * brackets off its free tier and STRATZ token signup is broken. STRATZ has to
+ * be asked for explicitly, and refuses to start without a token rather than
+ * failing quietly on every poll.
+ */
+function readScheduleKind(
+  raw: string,
+  context: { demo: boolean; scheduleFile: string; stratzToken: string },
+  warnings: string[],
+): ScheduleKind {
+  const requested = raw.toLowerCase();
+
+  if (requested === 'stratz') {
+    if (!context.stratzToken) {
+      warnings.push(
+        'SCHEDULE_SOURCE=stratz needs STRATZ_TOKEN — falling back to no schedule',
+      );
+      return 'none';
+    }
+    warnings.push(
+      'SCHEDULE_SOURCE=stratz: the query is written to spec but has never run ' +
+        'against a live token. Verify it with `npm run stratz:check`.',
+    );
+    return 'stratz';
+  }
+  if (requested === 'json') {
+    if (!existsSync(context.scheduleFile)) {
+      warnings.push(
+        `SCHEDULE_SOURCE=json but ${context.scheduleFile} does not exist — ` +
+          'copy schedule.example.json to start one',
+      );
+    }
+    return 'json';
+  }
+  if (requested === 'demo') {
+    return 'demo';
+  }
+  if (requested === 'none') {
+    return 'none';
+  }
+  if (requested) {
+    warnings.push(`SCHEDULE_SOURCE=${requested} is unknown, using auto-detection`);
+  }
+
+  if (context.demo) {
+    return 'demo';
+  }
+  return existsSync(context.scheduleFile) ? 'json' : 'none';
 }

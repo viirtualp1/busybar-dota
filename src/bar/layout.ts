@@ -29,6 +29,10 @@ export const BACK = {
   heroWidth: 40,
   statsOffset: 42,
   statsWidth: 34,
+  /** Bracket rows run the full width instead: a short round label, then the tie. */
+  bracketLabelWidth: 28,
+  bracketTextX: 32,
+  bracketTextWidth: 124,
 } as const;
 
 export type BarFont = 'tiny' | 'small' | 'bold';

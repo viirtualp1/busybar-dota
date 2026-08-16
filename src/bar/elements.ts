@@ -16,13 +16,13 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       'band-radiant',
       0,
       fill,
-      frame.idle ? COLORS.transparent : COLORS.radiantFill,
+      frame.showBands ? COLORS.radiantFill : COLORS.transparent,
     ),
     bandRect(
       'band-dire',
       fill,
       FRONT.width - fill,
-      frame.idle ? COLORS.transparent : COLORS.direFill,
+      frame.showBands ? COLORS.direFill : COLORS.transparent,
     ),
     {
       id: 'tag-radiant',
@@ -147,7 +147,7 @@ export function backElements(frame: DotaFrame): Array<TextElement | RectangleEle
     width: 1,
     height: BACK.height - BACK.firstRowY + 2,
     fill: 'solid',
-    fill_colors: [frame.idle ? COLORS.transparent : COLORS.backDivider],
+    fill_colors: [frame.showDivider ? COLORS.backDivider : COLORS.transparent],
     border_width: 0,
     border_color: COLORS.transparent,
     timeout: 0,
@@ -158,9 +158,42 @@ export function backElements(frame: DotaFrame): Array<TextElement | RectangleEle
   for (let index = 0; index < BACK.maxRows; index += 1) {
     const row = frame.backRows[index];
     const y = rowY(index);
+    // Both layouts emit the same four ids per row, so switching between a
+    // roster and a bracket cannot strand text from the previous mode.
+    const pair =
+      row?.kind === 'wide'
+        ? {
+            // A marker, not a brighter grey: on a 16-shade panel the two
+            // brightest shades are indistinguishable at this size.
+            left: { hero: `${row.highlight ? '>' : ' '}${row.label}`, stats: '' },
+            right: { hero: row.text, stats: '' },
+            // Rounds already played are context, so they recede.
+            color: row.highlight ? COLORS.white : COLORS.dim,
+          }
+        : {
+            left: row?.left ?? null,
+            right: row?.right ?? null,
+            color: COLORS.backText,
+          };
+
+    const wide = row?.kind === 'wide';
     elements.push(
-      ...columnElements(`r${index}`, BACK.leftX, y, row?.left ?? null),
-      ...columnElements(`d${index}`, BACK.rightX, y, row?.right ?? null),
+      ...columnElements(
+        `r${index}`,
+        BACK.leftX,
+        y,
+        pair.left,
+        wide ? BACK.bracketLabelWidth : BACK.heroWidth,
+        pair.color,
+      ),
+      ...columnElements(
+        `d${index}`,
+        wide ? BACK.leftX + BACK.bracketTextX : BACK.rightX,
+        y,
+        pair.right,
+        wide ? BACK.bracketTextWidth : BACK.heroWidth,
+        pair.color,
+      ),
     );
   }
 
@@ -172,19 +205,21 @@ function columnElements(
   x: number,
   y: number,
   cell: { hero: string; stats: string } | null,
+  width: number,
+  color: string,
 ): TextElement[] {
   return [
     {
       id: `${id}-hero`,
       type: 'text',
-      text: cell ? clipToWidth(cell.hero, BACK.heroWidth, 'tiny') : ' ',
+      text: cell ? clipToWidth(cell.hero, width, 'tiny') : ' ',
       font: 'tiny',
-      color: cell ? COLORS.backText : COLORS.transparent,
+      color: cell ? color : COLORS.transparent,
       display: 'back',
       align: 'top_left',
       x,
       y,
-      width: BACK.heroWidth,
+      width,
       timeout: 0,
     },
     {

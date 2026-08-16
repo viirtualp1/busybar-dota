@@ -4,6 +4,7 @@ import { BarDisplay, createBusyBar } from './bar/display.js';
 import { errorMessage } from './bar/errors.js';
 import { loadConfig, loadEnvFile } from './config.js';
 import { HeroCatalog } from './dota/heroes.js';
+import { createScheduleSource } from './dota/schedule/index.js';
 import { createSource } from './dota/source.js';
 
 loadEnvFile();
@@ -19,8 +20,19 @@ const source = createSource(
   config.demo,
 );
 
+// No keyless API publishes a pro schedule — Valve's GetScheduledLeagueGames is
+// gone — so the between-games view is opt-in rather than silently absent.
+const schedule = createScheduleSource({
+  kind: config.scheduleKind,
+  file: config.scheduleFile,
+  stratzToken: config.stratzToken,
+  leagueId: config.leagueId,
+  timeoutMs: config.requestTimeoutMs,
+});
+
 console.log('busybar-dota');
 console.log(`Source: ${source.label}`);
+console.log(`Schedule: ${schedule.label}`);
 if (config.leagueId) {
   console.log(`League filter: ${config.leagueId}`);
 }
@@ -36,6 +48,7 @@ const bar = createBusyBar({
 const app = new App({
   config,
   source,
+  schedule,
   heroes: new HeroCatalog(),
   display: new BarDisplay(bar, config.drawPriority),
 });

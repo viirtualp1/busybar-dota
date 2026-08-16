@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { FRONT, LEAD_CAP, MIN_FILL, radiantFillWidth } from '../src/bar/layout.js';
-import { HeroCatalog } from '../src/dota/heroes.js';
 import {
   deriveTag,
   emptyTeam,
@@ -11,8 +10,9 @@ import {
 import { buildFrame } from '../src/view/frame.js';
 import { formatClock, formatGold } from '../src/view/format.js';
 
-const heroes = new HeroCatalog();
-const options = { heroes, maxRows: 5, flash: null, idleNote: '' } as const;
+import { frameOptions, heroes, pairOf } from './helpers.js';
+
+const options = frameOptions({ maxRows: 5 });
 
 function snapshot(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
@@ -44,7 +44,7 @@ test('the front shows the kill score and clock', () => {
   const frame = buildFrame(snapshot(), options);
   assert.equal(frame.scoreText, '12-8');
   assert.equal(frame.clockText, '24:13');
-  assert.equal(frame.idle, false);
+  assert.equal(frame.mode, 'live');
 });
 
 test('the pre-horn countdown reads as negative time', () => {
@@ -69,9 +69,14 @@ test('the lead subtitle names the team that is ahead', () => {
 
 test('an idle snapshot yields a blank roster instead of stale rows', () => {
   const frame = buildFrame(idleSnapshot(), { ...options, idleNote: 'no games' });
-  assert.equal(frame.idle, true);
+  assert.equal(frame.mode, 'idle');
   assert.equal(frame.backRows.length, options.maxRows);
-  assert.ok(frame.backRows.every((row) => row.left === null && row.right === null));
+  assert.ok(
+    frame.backRows.every((row) => {
+      const { left, right } = pairOf(row);
+      return left === null && right === null;
+    }),
+  );
 });
 
 test('tags fall back to initials when the API gives no short name', () => {

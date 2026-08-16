@@ -4,3 +4,4 @@ dist/
 *.tsbuildinfo
 preview-*.png
 shot-*.png
+schedule.json
