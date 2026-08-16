@@ -1,6 +1,12 @@
 import { OpenDotaSource } from './opendota.js';
 import { SteamSource } from './steam.js';
-import { deriveTag, emptyTeam, type MatchSnapshot, type PlayerState } from './types.js';
+import {
+  deriveTag,
+  emptyTeam,
+  type Draft,
+  type MatchSnapshot,
+  type PlayerState,
+} from './types.js';
 
 export type MatchSource = {
   readonly label: string;
@@ -41,6 +47,11 @@ const DEMO_HEROES = {
   dire: [11, 41, 19, 31, 86],
 } as const;
 
+const DEMO_BANS = {
+  radiant: [1, 14, 47, 63, 81, 90, 114],
+  dire: [6, 21, 44, 53, 79, 92, 123],
+} as const;
+
 /**
  * A synthetic match.
  *
@@ -51,13 +62,21 @@ const DEMO_HEROES = {
  */
 export class DemoSource implements MatchSource {
   readonly label = 'demo (synthetic match)';
-  private readonly startedAt = Date.now();
+
+  /**
+   * `startedAt` in the past fast-forwards the match. The draft window is only
+   * three real seconds wide, so a screenshot of it has to be asked for by
+   * seeking rather than waited for.
+   */
+  constructor(private readonly startedAt = Date.now()) {}
 
   poll(): Promise<MatchSnapshot | null> {
     const elapsed = (Date.now() - this.startedAt) / 1000;
     // 20x speed: a full 40-minute game plays out in two minutes.
     const gameTimeSec = Math.round(elapsed * 20) - 60;
     const minutes = Math.max(0, gameTimeSec / 60);
+    // The first three seconds sit at or below zero, which is the draft window.
+    const draftProgress = gameTimeSec <= 0 ? (gameTimeSec + 60) / 60 : 1;
 
     const radiantKills = Math.floor(minutes * 0.9);
     const direKills = Math.floor(minutes * 0.75);
@@ -75,6 +94,7 @@ export class DemoSource implements MatchSource {
         towers: 11 - Math.min(11, Math.floor(minutes / 5)),
         seriesWins: 1,
         players: demoPlayers(DEMO_HEROES.radiant, radiantKills, direKills, minutes),
+        draft: demoDraft(DEMO_HEROES.radiant, DEMO_BANS.radiant, draftProgress),
       },
       dire: {
         ...emptyTeam('Falcons', deriveTag('Falcons', 'DIR')),
@@ -82,6 +102,7 @@ export class DemoSource implements MatchSource {
         towers: 11 - Math.min(11, Math.floor(minutes / 6)),
         seriesWins: 0,
         players: demoPlayers(DEMO_HEROES.dire, direKills, radiantKills, minutes),
+        draft: demoDraft(DEMO_HEROES.dire, DEMO_BANS.dire, draftProgress),
       },
       netWorthLead,
       seriesType: 1,
@@ -90,6 +111,21 @@ export class DemoSource implements MatchSource {
       source: 'demo',
     });
   }
+}
+
+/** Bans land before picks in a real draft, so they fill first. */
+function demoDraft(
+  heroes: readonly number[],
+  bans: readonly number[],
+  progress: number,
+): Draft {
+  const clamped = Math.max(0, Math.min(1, progress));
+  const banShare = Math.min(1, clamped / 0.6);
+  const pickShare = Math.max(0, (clamped - 0.4) / 0.6);
+  return {
+    bans: bans.slice(0, Math.round(banShare * bans.length)),
+    picks: heroes.slice(0, Math.round(pickShare * heroes.length)),
+  };
 }
 
 function demoPlayers(

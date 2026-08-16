@@ -36,7 +36,8 @@
     "check": "npm run lint && npm run typecheck && npm test",
     "dev": "tsx src/index.ts",
     "demo": "tsx src/index.ts --demo",
-    "start": "npm run build && node dist/index.js"
+    "start": "npm run build && node dist/index.js",
+    "shot": "tsx src/preview.ts"
   },
   "dependencies": {
     "@busy-app/busy-lib": "^0.18.0"

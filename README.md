@@ -5,7 +5,7 @@ International, works for any pro game.
 
 ## What you get
 
-**Front — the front display *is* the net worth bar**
+**Front — the front display _is_ the net worth bar**
 
 The 72 pixels are split between the two teams by gold: Radiant green from the
 left, Dire red from the right, kill score in bold on top. You read who is
@@ -21,6 +21,9 @@ winning from across the room without reading a single number.
 
 - Both team names, net worth lead and standing towers
 - Five rows, Radiant on the left and Dire on the right: hero + K/D/A
+- **During the draft** the same rows show picks in draft order, and the subtitle
+  shows the ban count plus each side's most recent ban. The front clock reads
+  `DRAFT` instead of counting down to a horn that has not been scheduled yet.
 
 ## Requirements
 
@@ -48,19 +51,52 @@ development loop. Run a synthetic match instead:
 npm run demo
 ```
 
-It plays a full 40-minute game in two minutes, and deliberately swings the net
-worth lead across zero so both colours and every event path get exercised.
+It plays a full 40-minute game in two minutes, starting from a draft, and
+deliberately swings the net worth lead across zero so both colours and every
+event path get exercised.
+
+### Screenshots without a Bar
+
+```bash
+npm run shot            # the synthetic match, mid-game
+npm run shot -- --draft # the draft phase
+npm run shot -- --live  # whatever is actually live right now
+```
+
+Writes `preview-front.png` (72×16) and `preview-back.png` (160×80), scaled 8×
+with square pixels, and prints the same frame as text.
+
+It rasterises the _same element array_ that goes over the wire, so a layout bug
+appears here exactly as it would on hardware — with two deliberate caveats:
+
+- **Glyphs are approximate.** The Bar renders real TTFs baked to a glyph atlas
+  and there is no way to reach those from Node, so the preview uses a built-in
+  3×5 font and renders everything upper case. It will tell you that a column
+  overflows or that the wrong value is on screen; it will not tell you that a
+  letter is a pixel narrower on hardware.
+- **The back display is flattened to 16 greys**, because that is what the panel
+  is. This is the point, not a shortcut: it is what showed that Radiant green and
+  Dire red collapse into two nearly identical greys on the back, which is why the
+  rosters are separated by a divider rule instead of by colour.
+
+For pixel-exact _front_ rendering there is the community
+[busybar-emulator](https://github.com/maxswinkels/busybar-emulator), which
+speaks the same HTTP API with the device's real fonts — point `BUSY_ADDR` at it.
+It does not implement the back display, which is the half this preview exists
+for. busy-lib ships a `ScreenRenderer` with the same limitation, and it is
+canvas-bound so it will not run in Node at all.
 
 ## Data sources
 
 Two upstreams, picked automatically:
 
-| | Steam `GetLiveLeagueGames` | OpenDota `/live` |
-| --- | --- | --- |
-| Key | free key required | none |
-| Per-player K/D/A | yes | no |
-| Tower state | yes | yes |
-| Series score | yes | no |
+|                  | Steam `GetLiveLeagueGames` | OpenDota `/live` |
+| ---------------- | -------------------------- | ---------------- |
+| Key              | free key required          | none             |
+| Per-player K/D/A | yes                        | no               |
+| Picks and bans   | yes                        | no               |
+| Tower state      | yes                        | yes              |
+| Series score     | yes                        | no               |
 
 Set `STEAM_API_KEY` for the full back display. Without it the app falls back to
 OpenDota and the roster shows heroes only — the front display is identical
@@ -77,18 +113,18 @@ hero ids instead of refusing to start.
 
 ## Configuration
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `BUSY_ADDR` | `10.0.4.20` | USB address; Bar LAN IP for Wi-Fi; `https://api.busy.app` for cloud |
-| `BUSY_TOKEN` | — | cloud only |
-| `BUSY_HTTP_PASSWORD` | — | Wi-Fi only (Bar web UI → Network → HTTP API access) |
-| `STEAM_API_KEY` | — | unlocks per-player stats |
-| `LEAGUE_ID` | — | pin to one tournament |
-| `MATCH_ID` | — | pin to one game |
-| `POLL_MS` | `5000` | upstreams refresh every few seconds |
-| `FRAME_MS` | `200` | redraw cadence |
-| `DRAW_PRIORITY` | `40` | |
-| `DEMO` | — | `1` for the synthetic match |
+| Variable             | Default     | Notes                                                               |
+| -------------------- | ----------- | ------------------------------------------------------------------- |
+| `BUSY_ADDR`          | `10.0.4.20` | USB address; Bar LAN IP for Wi-Fi; `https://api.busy.app` for cloud |
+| `BUSY_TOKEN`         | —           | cloud only                                                          |
+| `BUSY_HTTP_PASSWORD` | —           | Wi-Fi only (Bar web UI → Network → HTTP API access)                 |
+| `STEAM_API_KEY`      | —           | unlocks per-player stats                                            |
+| `LEAGUE_ID`          | —           | pin to one tournament                                               |
+| `MATCH_ID`           | —           | pin to one game                                                     |
+| `POLL_MS`            | `5000`      | upstreams refresh every few seconds                                 |
+| `FRAME_MS`           | `200`       | redraw cadence                                                      |
+| `DRAW_PRIORITY`      | `40`        |                                                                     |
+| `DEMO`               | —           | `1` for the synthetic match                                         |
 
 ## Notes
 
@@ -106,8 +142,8 @@ numbers on screen rather than blanking the display — slightly stale beats empt
 
 ## Things worth building next
 
-- Draft view: `GetLiveLeagueGames` exposes picks and bans, which would make a
-  good back display during the draft phase
+- Bans as a grid of hero portraits instead of a count plus the latest two — the
+  back display has the room once picks are done
 - Roshan timer — the Steam scoreboard has `roshan_respawn_timer`
 - Sound on tower falls, using the stock sounds the way busybar-livesplit does
 - Per-player net worth bars instead of plain K/D/A text

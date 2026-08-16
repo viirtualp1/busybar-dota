@@ -107,8 +107,8 @@ function bandRect(id: string, x: number, width: number, color: string): Rectangl
   };
 }
 
-export function backElements(frame: DotaFrame): TextElement[] {
-  const elements: TextElement[] = [
+export function backElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
+  const elements: Array<TextElement | RectangleElement> = [
     {
       id: 'back-header',
       type: 'text',
@@ -135,14 +135,32 @@ export function backElements(frame: DotaFrame): TextElement[] {
     },
   ];
 
+  // Hue is unavailable on a greyscale panel, so the two rosters are separated by
+  // a rule rather than by colour.
+  elements.push({
+    id: 'column-divider',
+    type: 'rectangle',
+    display: 'back',
+    align: 'top_left',
+    x: BACK.rightX - 4,
+    y: BACK.firstRowY - 3,
+    width: 1,
+    height: BACK.height - BACK.firstRowY + 2,
+    fill: 'solid',
+    fill_colors: [frame.idle ? COLORS.transparent : COLORS.backDivider],
+    border_width: 0,
+    border_color: COLORS.transparent,
+    timeout: 0,
+  });
+
   // Fixed element count keeps ids stable, so a shorter roster cannot leave
   // yesterday's heroes on screen.
   for (let index = 0; index < BACK.maxRows; index += 1) {
     const row = frame.backRows[index];
     const y = rowY(index);
     elements.push(
-      ...columnElements(`r${index}`, BACK.leftX, y, row?.left ?? null, COLORS.radiant),
-      ...columnElements(`d${index}`, BACK.rightX, y, row?.right ?? null, COLORS.dire),
+      ...columnElements(`r${index}`, BACK.leftX, y, row?.left ?? null),
+      ...columnElements(`d${index}`, BACK.rightX, y, row?.right ?? null),
     );
   }
 
@@ -154,7 +172,6 @@ function columnElements(
   x: number,
   y: number,
   cell: { hero: string; stats: string } | null,
-  color: string,
 ): TextElement[] {
   return [
     {
@@ -162,7 +179,7 @@ function columnElements(
       type: 'text',
       text: cell ? clipToWidth(cell.hero, BACK.heroWidth, 'tiny') : ' ',
       font: 'tiny',
-      color: cell ? color : COLORS.transparent,
+      color: cell ? COLORS.backText : COLORS.transparent,
       display: 'back',
       align: 'top_left',
       x,

@@ -12,6 +12,14 @@ export const COLORS = {
   direFill: '#33100BFF',
   muted: '#9AA0A6FF',
   dim: '#6B7075FF',
+  /**
+   * Back-display text. The back panel is a 16-shade grey OLED, so the Radiant
+   * green and Dire red that work on the front collapse into two nearly identical
+   * greys there. Both columns use one legible shade and a divider tells them
+   * apart instead of hue.
+   */
+  backText: '#E6E6E6FF',
+  backDivider: '#5A5A5AFF',
   clock: '#D8DCE0FF',
   ledRadiant: '#3FBF5FFF',
   ledDire: '#E14B3AFF',

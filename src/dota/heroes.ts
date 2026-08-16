@@ -48,7 +48,7 @@ export class HeroCatalog {
   private names = new Map<number, string>();
   private loaded = false;
 
-  constructor(private readonly fetchImpl: typeof fetch = fetch) { }
+  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
   get ready(): boolean {
     return this.loaded;

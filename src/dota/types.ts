@@ -12,6 +12,12 @@ export type PlayerState = {
   level: number | null;
 };
 
+/** Hero ids in the order they were picked and banned. Steam-only. */
+export type Draft = {
+  picks: number[];
+  bans: number[];
+};
+
 export type TeamState = {
   name: string;
   /** Short tag for the 72px front display. Derived when the API omits it. */
@@ -23,6 +29,7 @@ export type TeamState = {
   /** Games won in the current series. */
   seriesWins: number;
   players: PlayerState[];
+  draft: Draft;
 };
 
 export type MatchSnapshot = {
@@ -45,7 +52,34 @@ export type MatchSnapshot = {
 };
 
 export function emptyTeam(name: string, tag: string): TeamState {
-  return { name, tag, kills: 0, towers: null, seriesWins: 0, players: [] };
+  return {
+    name,
+    tag,
+    kills: 0,
+    towers: null,
+    seriesWins: 0,
+    players: [],
+    draft: { picks: [], bans: [] },
+  };
+}
+
+/**
+ * True while the teams are still drafting.
+ *
+ * The horn clock is the signal: Steam reports `duration` 0 until the game
+ * actually starts, and a draft is only worth showing when there is draft data
+ * to show — OpenDota never sends any.
+ */
+export function isDrafting(snapshot: MatchSnapshot): boolean {
+  if (snapshot.gameTimeSec > 0) {
+    return false;
+  }
+  const entries =
+    snapshot.radiant.draft.picks.length +
+    snapshot.radiant.draft.bans.length +
+    snapshot.dire.draft.picks.length +
+    snapshot.dire.draft.bans.length;
+  return entries > 0;
 }
 
 export function idleSnapshot(): MatchSnapshot {

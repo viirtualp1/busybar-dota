@@ -136,7 +136,22 @@ function team(
     towers: towerState === undefined ? null : countBits(num(towerState), TOWER_BITS),
     seriesWins,
     players: players(board['players']),
+    draft: {
+      picks: heroIds(board['picks']),
+      bans: heroIds(board['bans']),
+    },
   };
+}
+
+/** `picks` and `bans` arrive as `[{hero_id}]`, in draft order. */
+function heroIds(raw: unknown): number[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .filter(isRecord)
+    .map((entry) => num(entry['hero_id']))
+    .filter((heroId) => heroId > 0);
 }
 
 function players(raw: unknown): PlayerState[] {
