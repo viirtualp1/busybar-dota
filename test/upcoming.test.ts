@@ -4,7 +4,7 @@ import { backElements } from '../src/bar/elements.js';
 import { DemoScheduleSource, NO_SCHEDULE, type Schedule } from '../src/dota/schedule/index.js';
 import { idleSnapshot } from '../src/dota/types.js';
 import { buildFrame } from '../src/view/frame.js';
-import { formatCountdown, formatStartTime } from '../src/view/format.js';
+import { formatCountdown } from '../src/view/format.js';
 import { frameOptions, schedule, wideOf } from './helpers.js';
 
 const NOW = Date.UTC(2026, 7, 16, 6, 0, 0);
@@ -27,11 +27,16 @@ test('nothing live plus a schedule gives the upcoming view', () => {
   assert.equal(frame.mode, 'upcoming');
   // Two hours out, in the 8:00 UTC fixture.
   assert.equal(frame.scoreText, '2:00:00');
-  assert.equal(frame.radiantTag, 'TS');
-  assert.equal(frame.direTag, 'FLC');
-  // The stage used to sit here as `UB2`; it told nobody anything.
+  // Abbreviated tags and the stage both left the front while waiting: nothing
+  // else wants the row, and full names beat `TS` / `UB2` at a glance.
+  assert.equal(frame.radiantTag, '');
+  assert.equal(frame.direTag, '');
   assert.equal(frame.seriesText, '');
-  assert.equal(frame.clockText, formatStartTime(Date.UTC(2026, 7, 16, 8, 0, 0)));
+  // The line loops from its head, so at t=0 into the cycle it reads from the start.
+  assert.match(
+    buildFrame(idleSnapshot(), frameOptions({ nowEpochMs: 0, schedule: schedule() })).tickerText,
+    /^Team Spirit vs/,
+  );
 });
 
 test('the back line carries the date and series length, not the stage', () => {

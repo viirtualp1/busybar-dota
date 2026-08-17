@@ -235,7 +235,7 @@ export class App {
       return;
     }
 
-    this.logger.info(`[${event.kind}] ${event.long}`);
+    this.logger.info(`[${event.kind}] ${event.text}`);
     if (this.config.sounds) {
       void this.display.playEvent(event).catch(() => {
         // sound is cosmetic

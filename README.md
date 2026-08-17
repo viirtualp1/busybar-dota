@@ -7,19 +7,21 @@ International, works for any pro game.
 
 **Front — the front display _is_ the net worth bar**
 
-The 72 pixels are split between the two teams by gold: Radiant green from the
-left, Dire red from the right, kill score in bold on top. You read who is
-winning from across the room without reading a single number.
+The 72 pixels are split between the two teams **by net worth, not by the kill
+score** — Radiant green from the left, Dire red from the right, kills in bold on
+top. So a 1-1 game with a 3k gold lead shows a green-heavy bar, and that is the
+point: you read who is actually winning from across the room without reading a
+single number.
 
-- Kill score, big and centred
+- Kill score, big and centred, with the series score directly beneath it
 - Team tags in their side's colour
 - Game clock (negative during the pre-horn countdown, like the game itself)
-- Series score, centred under the kill score
 - **Event ticker**: when a tower, barracks or Roshan goes down, the bottom row
-  hands itself over for a few seconds — `FAL MID T2`, `FAL MID RAX`,
-  `ROSHAN DOWN` — with an LED flash and a sound, then gives the clock back.
-  Kills appear silently: there are dozens of them and one chirp each is a
-  machine gun.
+  hands itself over — `FLC lost mid tier 2 tower`, `Roshan killed, respawns in
+9 min` — with an LED flash and a sound, then gives the clock back. Anything
+  too long to fit **scrolls** rather than being abbreviated: `FAL MID RAX` saved
+  pixels and lost the meaning. Kills appear silently, because there are dozens
+  of them and one chirp each is a machine gun.
 
 **Back**
 
@@ -33,13 +35,27 @@ barracks` — since there is room for the detail the front cannot fit.
   shows the ban count plus each side's most recent ban. The front clock reads
   `DRAFT` instead of counting down to a horn that has not been scheduled yet.
 
+**When a game ends** — the result takes the screen
+
+For two minutes the display is only about who won: `TS WIN` in bold with
+`Game 1: Team Spirit beat Falcons` scrolling beneath it, countdown hidden. Then
+the countdown comes back and the result keeps showing underneath it for the next
+twenty minutes.
+
+The winner is not in the live feed — a finished game simply stops being listed,
+and the series score it carried was the score _going into_ that game. It is
+resolved from OpenDota's `/matches/{id}`, which needs no key. Until that lands
+the screen says `GAME OVER` and `result pending` rather than guessing.
+
 **Between games** — countdown, start time and bracket
 
 When nothing is live, the same slots switch meaning rather than going blank: the
-score becomes a countdown to the next match, the tags become the two teams and
-the clock becomes the scheduled start time. The back display carries the date,
-time and series length, plus the bracket with the upcoming tie marked `>` and
-the rest dimmed.
+score becomes a countdown to the next match and the row beneath it carries the
+matchup in **full team names**, scrolling if they do not fit. Abbreviated tags
+belong to a running game, where the two halves of the bar say which is which;
+while waiting there is nothing to decode them against. The back display carries
+the date, time and series length, plus the bracket with the upcoming tie marked
+`>` and the rest dimmed.
 
 The round label in the bracket only appears when the round _changes_ — four
 quarterfinals in a row do not each need to say `UBQ`, and dropping the

@@ -49,37 +49,34 @@ test('a fallen tower is named by lane and tier, not just counted', () => {
   const { event } = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 4)));
   assert.equal(event?.kind, 'tower');
   assert.equal(event?.side, 'dire');
-  assert.match(event.short, /MID T2/);
+  assert.match(event.text, /mid tier 2 tower/);
 });
 
 test('both tier-4 bits read as T4, since their order is not worth asserting', () => {
   const before = stateOf(snapshot());
   const nine = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 9)));
   const ten = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 10)));
-  assert.match(nine.event!.short, /T4/);
-  assert.match(ten.event!.short, /T4/);
+  assert.match(nine.event!.text, /tier 4 tower/);
+  assert.match(ten.event!.text, /tier 4 tower/);
 });
 
-test('two towers at once collapse on the front but stay listed on the back', () => {
+test('two towers at once are both named, and the noun agrees', () => {
   const before = stateOf(snapshot());
   const { event } = detectEvent(
     before,
     withDireTowers(ALL_TOWERS & ~(1 << 0) & ~(1 << 3)),
   );
-  // 72px does not fit "TOP T1 + MID T1"; the back display has the room.
-  assert.equal(event!.short, 'DIR 2 TOWERS');
-  assert.match(event!.long, /top t1 \+ mid t1/);
+  assert.equal(event!.text, 'DIR lost top tier 1 and mid tier 1 towers');
 });
 
-test('both mid racks read as one lane rather than melee plus ranged', () => {
+test('barracks stay singular in wording, since the word already is', () => {
   const before = stateOf(snapshot());
   const base = snapshot();
   const { event } = detectEvent(before, {
     ...base,
     dire: { ...base.dire, barracksState: ALL_BARRACKS & ~(1 << 2) & ~(1 << 3) },
   });
-  assert.equal(event!.short, 'DIR MID RAX');
-  assert.equal(event!.long, 'DIR lost mid barracks');
+  assert.equal(event!.text, 'DIR lost mid melee and mid ranged barracks');
 });
 
 test('barracks outrank towers, and towers outrank kills', () => {
@@ -149,7 +146,7 @@ test('the ticker holds an event, then gets out of the way', () => {
   const ticker = new EventTicker(1000);
   const tower = detectEvent(stateOf(snapshot()), withDireTowers(ALL_TOWERS & ~1)).event;
   assert.equal(ticker.push(tower, 0), true);
-  assert.equal(ticker.active(500)?.kind, 'tower');
+  assert.equal(ticker.active(500)?.event.kind, 'tower');
   assert.equal(ticker.active(1500), null);
 });
 
@@ -167,12 +164,12 @@ test('a kill cannot cut a Roshan line short, but a rax can', () => {
     radiant: { ...base.radiant, kills: 6 },
   }).event;
   assert.equal(ticker.push(kill, 100), false);
-  assert.equal(ticker.active(200)?.kind, 'roshan');
+  assert.equal(ticker.active(200)?.event.kind, 'roshan');
 
   const rax = detectEvent(stateOf(base), {
     ...base,
     dire: { ...base.dire, barracksState: ALL_BARRACKS & ~(1 << 2) },
   }).event;
   assert.equal(ticker.push(rax, 200), true);
-  assert.equal(ticker.active(300)?.kind, 'barracks');
+  assert.equal(ticker.active(300)?.event.kind, 'barracks');
 });

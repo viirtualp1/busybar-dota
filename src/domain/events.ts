@@ -14,10 +14,12 @@ export type MatchEvent = {
   kind: MatchEventKind;
   /** Which team it happened *to* for buildings, and *for* on kills. */
   side: Side | null;
-  /** Fits the 72px front display: at most ~14 tiny glyphs. */
-  short: string;
-  /** Fits the 160px back display. */
-  long: string;
+  /**
+   * One full sentence, written out. The front display scrolls it when it does
+   * not fit rather than abbreviating — `FAL MID RAX` saved pixels and lost the
+   * meaning.
+   */
+  text: string;
   /**
    * Only one event is shown per poll, so ties are broken by how rare and
    * consequential the thing is: the game ending, then racks (they usually decide
@@ -124,8 +126,7 @@ export function detectEvent(
         ? {
             kind: 'match-start',
             side: null,
-            short: 'GAME ON',
-            long: `${snapshot.radiant.name} vs ${snapshot.dire.name}`,
+            text: `Game on: ${snapshot.radiant.name} vs ${snapshot.dire.name}`,
             priority: 90,
             sound: true,
           }
@@ -138,8 +139,7 @@ export function detectEvent(
       event: {
         kind: 'match-end',
         side: null,
-        short: 'GAME OVER',
-        long: 'game finished',
+        text: 'Game over',
         priority: 100,
         sound: true,
       },
@@ -175,8 +175,7 @@ function roshanEvent(previous: EventState, state: EventState): MatchEvent | null
     return {
       kind: 'roshan',
       side: null,
-      short: 'ROSHAN DOWN',
-      long: `Roshan killed, back in ${Math.round(after / 60)} min`,
+      text: `Roshan killed, respawns in ${Math.round(after / 60)} min`,
       priority: 75,
       sound: true,
     };
@@ -269,40 +268,29 @@ function buildingEvent(
     return null;
   }
 
-  const noun = kind === 'tower' ? 'tower' : 'barracks';
+  // "barracks" is already plural; "barrackss" is not a word.
+  const noun =
+    kind === 'tower' ? (lost.length > 1 ? 'towers' : 'tower') : 'barracks';
   return {
     kind,
     side,
-    // The front has room for about sixteen glyphs, and `MID MELEE + MID RANGED`
-    // is not one of them. Which lane went is the part worth glancing at; the
-    // back display keeps the detail.
-    short: shortBuilding(tag, lost, kind),
-    long: `${tag} lost ${longBuilding(lost, kind)} ${noun}`,
+    text: `${tag} lost ${spellOut(lost)} ${noun}`,
     // A double loss in one poll is a bigger deal than a single one.
     priority: priority + lost.length,
     sound: true,
   };
 }
 
-function shortBuilding(
-  tag: string,
-  lost: readonly string[],
-  kind: 'tower' | 'barracks',
-): string {
-  if (kind === 'barracks') {
-    const lanes = [...new Set(lost.map((name) => name.split(' ')[0]))];
-    return lanes.length === 1 ? `${tag} ${lanes[0]} RAX` : `${tag} ${lost.length} RAX`;
-  }
-  return lost.length === 1 ? `${tag} ${lost[0]}` : `${tag} ${lost.length} TOWERS`;
-}
-
-/** Collapses `mid melee + mid ranged` to `mid`, which is what people say. */
-function longBuilding(lost: readonly string[], kind: 'tower' | 'barracks'): string {
-  if (kind === 'barracks') {
-    const lanes = [...new Set(lost.map((name) => name.split(' ')[0]))];
-    return lanes.join(' + ').toLowerCase();
-  }
-  return lost.join(' + ').toLowerCase();
+/** `MID T2` reads as `mid tier 2` when there is room to say it properly. */
+function spellOut(lost: readonly string[]): string {
+  return lost
+    .map((name) =>
+      name
+        .toLowerCase()
+        .replace(/\bt(\d)\b/g, 'tier $1')
+        .replace(/\bbot\b/g, 'bottom'),
+    )
+    .join(' and ');
 }
 
 function killEvent(
@@ -323,8 +311,7 @@ function killEvent(
   return {
     kind: 'kill',
     side,
-    short: gained > 1 ? `${tag} +${gained}` : `${tag} KILL`,
-    long: `${tag} ${gained > 1 ? `+${gained} kills` : 'kill'}  ${score}`,
+    text: `${tag} ${gained > 1 ? `${gained} kills` : 'kill'} — ${score}`,
     priority: 10,
     sound: false,
   };

@@ -140,9 +140,11 @@ export class DemoSource implements MatchSource {
     const draftProgress = gameTimeSec <= 0 ? (gameTimeSec + 60) / 60 : 1;
     const radiantKills = killsBy(minutes, 0.58);
     const direKills = killsBy(minutes, 0.42);
-    // Radiant pulls ahead as the game goes, with a wobble early on.
+    // Dead even at the horn, diverging as the game goes. The swing amplitude
+    // grows with time too, or the bar looks lopsided at 1-1 when both teams have
+    // barely farmed anything.
     const netWorthLead = Math.round(
-      4000 * Math.sin(minutes / 5) + minutes * minutes * 12,
+      minutes * 60 * Math.sin(minutes / 4) + minutes * minutes * 10,
     );
 
     return Promise.resolve({

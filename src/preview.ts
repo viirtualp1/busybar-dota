@@ -21,13 +21,15 @@ import { createScheduleSource, DemoScheduleSource } from './dota/schedule/index.
 import { createSource, DemoSource } from './dota/source.js';
 import { detectEvent, stateOf, type MatchEvent } from './domain/events.js';
 import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
-import type { SeriesBreak } from './domain/series.js';
+import { RESULT_SCREEN_MS, type SeriesBreak } from './domain/series.js';
 import { buildFrame, type DotaFrame } from './view/frame.js';
 import { renderBack, renderFront } from './preview/raster.js';
 
 const SCALE = 8;
 /** 29.4 game minutes at the demo's 20x speed: the moment the mid racks fall. */
 const EVENT_SEEK_MS = ((29.4 * 60 + 60) / 20) * 1000;
+/** Far enough into the ticker that a scrolling line has started moving. */
+const TICKER_ELAPSED_MS = 0;
 
 loadEnvFile();
 const { config } = loadConfig();
@@ -37,6 +39,7 @@ const draftOnly = argv.includes('--draft');
 const upcoming = argv.includes('--upcoming');
 const breakOnly = argv.includes('--break');
 const eventShot = argv.includes('--event');
+const resultShot = argv.includes('--result');
 
 const heroes = new HeroCatalog();
 if (!(await heroes.load())) {
@@ -51,8 +54,9 @@ const frame = buildFrame(snapshot, {
   nowEpochMs: Date.now(),
   // `--upcoming` forces the between-games view; otherwise it appears whenever
   // nothing is live and a schedule source has something to say.
-  schedule: upcoming || breakOnly || !snapshot.live ? await captureSchedule() : null,
-  seriesBreak: breakOnly ? demoBreak() : null,
+  schedule:
+    upcoming || breakOnly || resultShot || !snapshot.live ? await captureSchedule() : null,
+  seriesBreak: breakOnly || resultShot ? demoBreak() : null,
   idleNote: 'nothing live right now',
 });
 
@@ -67,13 +71,16 @@ printAscii(frame);
  * Reruns the detector across the two polls either side of the seek point, so a
  * screenshot can show a real ticker line rather than a made-up one.
  */
-async function captureEvent(): Promise<MatchEvent | null> {
+async function captureEvent(): Promise<{ event: MatchEvent; elapsedMs: number } | null> {
   if (!eventShot) {
     return null;
   }
   const before = (await new DemoSource(Date.now() - EVENT_SEEK_MS + 5000).poll()) ?? idleSnapshot();
   const after = (await new DemoSource(Date.now() - EVENT_SEEK_MS).poll()) ?? idleSnapshot();
-  return detectEvent(stateOf(before), after).event;
+  const event = detectEvent(stateOf(before), after).event;
+  // A moment into the scroll, so a long line is caught mid-travel rather than
+  // always at its first frame.
+  return event ? { event, elapsedMs: TICKER_ELAPSED_MS } : null;
 }
 
 /** A plausible mid-series pause, for the `--break` screenshot. */
@@ -89,12 +96,15 @@ function demoBreak(): SeriesBreak {
     winsNeeded: 2,
     lastMatchId: 'demo',
     pendingResult: false,
-    startedAtMs: Date.now(),
+    lastWinner: 'radiant',
+    // Backdated past the result screen, so `--break` shows the countdown view
+    // and `--result` shows the two-minute takeover.
+    startedAtMs: resultShot ? Date.now() : Date.now() - RESULT_SCREEN_MS - 1000,
   };
 }
 
 async function capture(): Promise<MatchSnapshot> {
-  if (upcoming || breakOnly) {
+  if (upcoming || breakOnly || resultShot) {
     return idleSnapshot();
   }
   if (live) {

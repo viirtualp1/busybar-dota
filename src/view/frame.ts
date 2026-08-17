@@ -1,7 +1,14 @@
-import { radiantFillWidth } from '../bar/layout.js';
+import { FONT_WIDTH, FRONT, radiantFillWidth } from '../bar/layout.js';
+import { fittingChars, marquee, marqueeLoop } from './marquee.js';
 import type { MatchEvent, MatchEventKind } from '../domain/events.js';
 import type { HeroCatalog } from '../dota/heroes.js';
-import type { SeriesBreak } from '../domain/series.js';
+import {
+  isResultFresh,
+  isSeriesOver,
+  isShowingResult,
+  resultText,
+  type SeriesBreak,
+} from '../domain/series.js';
 import type { Schedule } from '../dota/schedule/index.js';
 import { isDrafting, type MatchSnapshot, type TeamState } from '../dota/types.js';
 import { COLORS } from './colors.js';
@@ -24,7 +31,13 @@ export type BackRow =
   | { kind: 'pair'; left: BackCell | null; right: BackCell | null }
   | { kind: 'wide'; label: string; text: string; highlight: boolean };
 
-export type FrameMode = 'live' | 'draft' | 'series-break' | 'upcoming' | 'idle';
+export type FrameMode =
+  | 'live'
+  | 'draft'
+  | 'result'
+  | 'series-break'
+  | 'upcoming'
+  | 'idle';
 
 export type DotaFrame = {
   mode: FrameMode;
@@ -50,8 +63,8 @@ export type DotaFrame = {
 export type FrameOptions = {
   heroes: HeroCatalog;
   maxRows: number;
-  /** The event currently owning the ticker, if any. */
-  ticker: MatchEvent | null;
+  /** The event currently owning the ticker, with how long it has been showing. */
+  ticker: { event: MatchEvent; elapsedMs: number } | null;
   /** Wall-clock time, needed for the countdown. */
   nowEpochMs: number;
   /** `null` when no schedule source is configured or it is unreachable. */
@@ -97,10 +110,25 @@ export const ROSTER_ROTATE_MS = 3000;
 
 const emptyRow: BackRow = { kind: 'pair', left: null, right: null };
 
+/** Glyphs of tiny text that fit across the front display. */
+export const FRONT_LINE_CHARS = fittingChars(FRONT.width - 2, FONT_WIDTH.tiny);
+
+function tickerLine(options: FrameOptions): string {
+  if (!options.ticker) {
+    return '';
+  }
+  return marquee(options.ticker.event.text, FRONT_LINE_CHARS, options.ticker.elapsedMs);
+}
+
 export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): DotaFrame {
   if (!snapshot.live) {
+    // Right after a game, who won owns the whole display for a couple of
+    // minutes; then the countdown comes back with the result underneath it.
+    if (options.seriesBreak && isShowingResult(options.seriesBreak, options.nowEpochMs)) {
+      return resultFrame(options.seriesBreak, options);
+    }
     // A series resuming in ten minutes beats a scheduled match hours away.
-    if (options.seriesBreak) {
+    if (options.seriesBreak && !isSeriesOver(options.seriesBreak)) {
       return seriesBreakFrame(options.seriesBreak, options);
     }
     return options.schedule?.next
@@ -125,21 +153,53 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
     radiantFill: radiantFillWidth(lead),
     showBands: true,
     showDivider: true,
-    ledColor: ledFor(options.ticker),
-    tickerText: options.ticker?.short ?? '',
+    ledColor: ledFor(options.ticker?.event ?? null),
+    tickerText: tickerLine(options),
     // Left name is the left column, right name is the right column — the header
     // is what makes the divider mean something.
     backHeader: `${snapshot.radiant.name} | ${snapshot.dire.name}`,
     // The ticker owns the sub-line while it runs: an event is worth more than
     // a net worth figure that is still there three seconds later.
     backSub:
-      options.ticker?.long ??
+      options.ticker?.event.text ??
       (drafting
         ? banSummary(snapshot, options)
         : lead === 0
           ? `even  ${towerText(snapshot)}`
           : `${leader} ${leadText}  ${towerText(snapshot)}`),
     backRows: drafting ? draftRows(snapshot, options) : backRows(snapshot, options),
+  };
+}
+
+/**
+ * The two minutes after a game ends.
+ *
+ * The countdown is deliberately hidden: the thing you want on walking back to
+ * the desk is who won, and a countdown to a match hours away can wait.
+ */
+function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
+  const elapsed = options.nowEpochMs - current.startedAtMs;
+  const headline = current.lastWinner
+    ? `${current.lastWinner === 'radiant' ? current.radiantTag : current.direTag} WIN`
+    : 'GAME OVER';
+
+  return {
+    mode: 'result',
+    scoreText: headline,
+    radiantTag: '',
+    direTag: '',
+    clockText: '',
+    seriesText: '',
+    radiantFill: radiantFillWidth(0),
+    showBands: false,
+    showDivider: false,
+    ledColor: COLORS.ledStart,
+    tickerText: marquee(resultText(current), FRONT_LINE_CHARS, elapsed),
+    backHeader: `${current.radiantName} | ${current.direName}`,
+    backSub: `${resultText(current)}  series ${current.radiantWins}-${current.direWins}`,
+    backRows: options.schedule
+      ? bracketRows(options.schedule, options.maxRows)
+      : Array.from({ length: options.maxRows }, () => emptyRow),
   };
 }
 
@@ -159,26 +219,27 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
       : 'BREAK';
 
   const score = `${current.radiantWins}-${current.direWins}`;
-  const finishedGame = current.nextGame - 1;
 
   return {
     mode: 'series-break',
     scoreText: countdown,
-    radiantTag: current.radiantTag,
-    direTag: current.direTag,
-    // A trailing marker while the winner of the finished game is still unknown,
-    // so a stale score never passes for a settled one.
-    clockText: current.pendingResult ? `${score}*` : score,
-    seriesText: `G${current.nextGame}`,
+    radiantTag: '',
+    direTag: '',
+    clockText: '',
+    seriesText: '',
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: '',
-    tickerText: '',
+    // The finished game's result, spelled out, under the countdown — the
+    // `1-0*` and `G3` that used to sit here explained nothing.
+    tickerText: marquee(
+      `${resultText(current)} — series ${score}, game ${current.nextGame} next`,
+      FRONT_LINE_CHARS,
+      options.nowEpochMs - current.startedAtMs,
+    ),
     backHeader: `${current.radiantName} | ${current.direName}`,
-    backSub: current.pendingResult
-      ? `game ${finishedGame} done, result pending  ${scheduledNote(scheduled)}`
-      : `${score}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
+    backSub: `series ${score}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
     backRows: options.schedule
       ? bracketRows(options.schedule, options.maxRows)
       : Array.from({ length: options.maxRows }, () => emptyRow),
@@ -210,20 +271,28 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
       ? 'TBD'
       : formatCountdown(next.startsAtMs - options.nowEpochMs);
 
+  // Full names under the countdown rather than `IW` / `TSP` in the corners:
+  // there is nothing else competing for the row while waiting, and a tag you
+  // have to decode is no use when the match is still hours away.
+  const matchup = `${next.teamA} vs ${next.teamB}`;
+  const recent = options.seriesBreak;
+  const line =
+    recent && isResultFresh(recent, options.nowEpochMs)
+      ? `${resultText(recent)}  ·  next: ${matchup}`
+      : matchup;
+
   return {
     mode: 'upcoming',
     scoreText: countdown,
-    radiantTag: next.tagA,
-    direTag: next.tagB,
-    clockText: next.startsAtMs === null ? '' : formatStartTime(next.startsAtMs),
-    // No stage here: `UB2` told nobody anything the back display was not
-    // already spelling out in full.
+    radiantTag: '',
+    direTag: '',
+    clockText: '',
     seriesText: '',
+    tickerText: marqueeLoop(line, FRONT_LINE_CHARS, options.nowEpochMs),
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: '',
-    tickerText: '',
     backHeader: `${next.teamA} | ${next.teamB}`,
     backSub: startLine(next, options),
     backRows: bracketRows(schedule, options.maxRows),

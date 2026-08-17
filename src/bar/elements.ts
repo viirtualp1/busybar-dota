@@ -85,12 +85,12 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       font: 'tiny',
       color: !ticking && frame.seriesText ? COLORS.muted : COLORS.transparent,
       display: 'front',
-      // Centred, so the series score does not drift with the width of whatever
-      // sits beside it.
+      // Centred directly under the kill score. No `width`: the bold score above
+      // has none either and lands dead centre, while a width turns `x` into the
+      // left edge of a box and pushes the text half a box to the right.
       align: 'top_mid',
       x: Math.floor(FRONT.width / 2),
       y: FRONT.bottomY,
-      width: FRONT.seriesWidth,
       timeout: 0,
     },
     {
@@ -103,7 +103,6 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       align: 'top_mid',
       x: Math.floor(FRONT.width / 2),
       y: FRONT.bottomY,
-      width: FRONT.width - 2,
       timeout: 0,
     },
   ];
