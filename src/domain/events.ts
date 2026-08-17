@@ -18,8 +18,10 @@ export const EVENT_TEXT = {
   matchEnd: () => 'Game over',
   roshan: () => `Roshan killed`,
   building: (tag: string, what: string, noun: string) => `${tag} lost ${what} ${noun}`,
-  kill: (tag: string, gained: number) =>
-    `${tag} ${gained > 1 ? `${gained} kills` : 'kill'}`,
+  kill: (killer: string, victims: readonly string[], gained: number) =>
+    victims.length > 0
+      ? `${killer} killed ${victims.join(' and ')}`
+      : `${killer} ${gained > 1 ? `${gained} kills` : 'kill'}`,
 } as const;
 
 export const BUILDING_WORDS = {
@@ -59,6 +61,13 @@ const BARRACKS_NAMES = [
 
 const ROSHAN_KILL_THRESHOLD_SEC = 60;
 
+type Combat = {
+  heroId: number;
+  name: string;
+  kills: number | null;
+  deaths: number | null;
+};
+
 export type EventState = {
   matchId: string;
   radiantKills: number;
@@ -67,9 +76,13 @@ export type EventState = {
   direTowers: number | null;
   radiantBarracks: number | null;
   direBarracks: number | null;
+  radiantPlayers: Combat[];
+  direPlayers: Combat[];
   roshanRespawnSec: number | null;
   live: boolean;
 };
+
+export type HeroName = (heroId: number) => string;
 
 export const initialEventState: EventState = {
   matchId: '',
@@ -79,6 +92,8 @@ export const initialEventState: EventState = {
   direTowers: null,
   radiantBarracks: null,
   direBarracks: null,
+  radiantPlayers: [],
+  direPlayers: [],
   roshanRespawnSec: null,
   live: false,
 };
@@ -92,6 +107,8 @@ export function stateOf(snapshot: MatchSnapshot): EventState {
     direTowers: snapshot.dire.towerState,
     radiantBarracks: snapshot.radiant.barracksState,
     direBarracks: snapshot.dire.barracksState,
+    radiantPlayers: combatOf(snapshot.radiant.players),
+    direPlayers: combatOf(snapshot.dire.players),
     roshanRespawnSec: snapshot.roshanRespawnSec,
     live: snapshot.live,
   };
@@ -100,6 +117,7 @@ export function stateOf(snapshot: MatchSnapshot): EventState {
 export function detectEvent(
   previous: EventState,
   snapshot: MatchSnapshot,
+  heroName: HeroName = (heroId) => `#${heroId}`,
 ): { event: MatchEvent | null; state: EventState } {
   const state = stateOf(snapshot);
 
@@ -140,7 +158,7 @@ export function detectEvent(
     roshanEvent(previous, state),
     ...barracksEvents(previous, state, snapshot),
     ...towerEvents(previous, state, snapshot),
-    killEvent(previous, state, snapshot),
+    killEvent(previous, state, snapshot, heroName),
   ].filter((event): event is MatchEvent => event !== null);
 
   const best = candidates.reduce<MatchEvent | null>(
@@ -285,21 +303,92 @@ function killEvent(
   previous: EventState,
   state: EventState,
   snapshot: MatchSnapshot,
+  heroName: HeroName,
 ): MatchEvent | null {
   const radiantGained = state.radiantKills - previous.radiantKills;
   const direGained = state.direKills - previous.direKills;
   if (radiantGained <= 0 && direGained <= 0) {
     return null;
   }
+
   const side: Side = radiantGained >= direGained ? 'radiant' : 'dire';
-  const tag = side === 'radiant' ? snapshot.radiant.tag : snapshot.dire.tag;
   const gained = Math.max(radiantGained, direGained);
+  const killers = [
+    ...risen(previous.radiantPlayers, state.radiantPlayers, 'kills'),
+    ...risen(previous.direPlayers, state.direPlayers, 'kills'),
+  ];
+  const victims = [
+    ...risen(previous.radiantPlayers, state.radiantPlayers, 'deaths'),
+    ...risen(previous.direPlayers, state.direPlayers, 'deaths'),
+  ];
+  const killer =
+    killers.length > 0
+      ? killers.map((player) => labelOf(player, heroName)).join(' and ')
+      : side === 'radiant'
+        ? snapshot.radiant.tag
+        : snapshot.dire.tag;
 
   return {
     kind: 'kill',
     side,
-    text: EVENT_TEXT.kill(tag, gained),
+    text: EVENT_TEXT.kill(
+      killer,
+      victims.map((player) => labelOf(player, heroName)),
+      gained,
+    ),
     priority: 10,
     sound: false,
   };
+}
+
+function combatOf(players: MatchSnapshot['radiant']['players']) {
+  return players.map((player) => ({
+    heroId: player.heroId,
+    name: player.name,
+    kills: player.kills,
+    deaths: player.deaths,
+  }));
+}
+
+function risen(before: Combat[], after: Combat[], field: 'kills' | 'deaths') {
+  const gained: Combat[] = [];
+  for (const [index, now] of after.entries()) {
+    const value = now[field];
+    if (value === null) {
+      continue;
+    }
+
+    const prev = previousOf(before, now, index)?.[field];
+    if (prev === null || prev === undefined || value <= prev) {
+      continue;
+    }
+
+    gained.push(now);
+  }
+
+  return gained;
+}
+
+function previousOf(before: Combat[], now: Combat, index: number) {
+  if (now.heroId) {
+    const match = before.find((player) => player.heroId === now.heroId);
+    if (match) {
+      return match;
+    }
+  }
+
+  return before[index];
+}
+
+function labelOf(player: Combat, heroName: HeroName) {
+  const hero = player.heroId ? heroName(player.heroId) : '';
+  if (hero && !hero.startsWith('#')) {
+    return hero;
+  }
+
+  if (player.name) {
+    return player.name;
+  }
+
+  return hero || '?';
 }

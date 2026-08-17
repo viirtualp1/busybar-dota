@@ -66,7 +66,7 @@ async function captureEvent(): Promise<{ event: MatchEvent; elapsedMs: number } 
     (await new DemoSource(Date.now() - EVENT_SEEK_MS + 5000).poll()) ?? idleSnapshot();
   const after =
     (await new DemoSource(Date.now() - EVENT_SEEK_MS).poll()) ?? idleSnapshot();
-  const event = detectEvent(stateOf(before), after).event;
+  const event = detectEvent(stateOf(before), after, (id) => heroes.name(id)).event;
 
   return event ? { event, elapsedMs: TICKER_ELAPSED_MS } : null;
 }

@@ -206,7 +206,9 @@ export class App {
   }
 
   private handleEvents() {
-    const { event, state } = detectEvent(this.events, this.snapshot);
+    const { event, state } = detectEvent(this.events, this.snapshot, (id) =>
+      this.heroes.name(id),
+    );
     this.events = state;
     if (event === null) {
       return;

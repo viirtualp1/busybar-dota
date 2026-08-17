@@ -144,7 +144,7 @@ function finalElements(frame: DotaFrame): Array<TextElement | RectangleElement> 
 function boxWidth(tag: string) {
   const text = Math.max(1, tag.length) * FONT_WIDTH.bold;
 
-  return Math.min(FRONT.width / 2 - 1, text + 6);
+  return Math.min(FRONT.width / 2 - 1, text + 3);
 }
 
 const FINAL_BOX_HEIGHT = 11;

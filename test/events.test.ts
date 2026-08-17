@@ -38,6 +38,18 @@ function withDireTowers(mask: number): MatchSnapshot {
   return { ...base, dire: { ...base.dire, towerState: mask } };
 }
 
+function player(heroId: number, kills: number, deaths: number) {
+  return {
+    heroId,
+    name: '',
+    kills,
+    deaths,
+    assists: 0,
+    netWorth: 0,
+    level: 1,
+  };
+}
+
 test('the first live poll of a match reports a start', () => {
   const { event } = detectEvent(initialEventState, snapshot());
   assert.equal(event?.kind, 'match-start');
@@ -118,6 +130,27 @@ test('kills are reported but stay silent', () => {
   });
   assert.equal(event?.kind, 'kill');
   assert.equal(event?.sound, false);
+  assert.equal(event?.text, 'RAD kill');
+});
+
+test('a kill names the heroes when the scoreboard has K/D', () => {
+  const base = snapshot();
+  const before = stateOf({
+    ...base,
+    radiant: { ...base.radiant, players: [player(8, 2, 0)] },
+    dire: { ...base.dire, players: [player(11, 1, 1)] },
+  });
+  const { event } = detectEvent(
+    before,
+    {
+      ...base,
+      radiant: { ...base.radiant, kills: 6, players: [player(8, 3, 0)] },
+      dire: { ...base.dire, players: [player(11, 1, 2)] },
+    },
+    (id) => (id === 8 ? 'Jugger' : id === 11 ? 'SF' : `#${id}`),
+  );
+  assert.equal(event?.kind, 'kill');
+  assert.equal(event?.text, 'Jugger killed SF');
 });
 
 test('a source without building masks never invents a fallen tower', () => {

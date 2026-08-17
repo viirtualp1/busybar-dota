@@ -87,6 +87,12 @@ test('every event sentence is plain ASCII', () => {
   );
 });
 
+test('a kill line names who killed whom', () => {
+  assert.equal(EVENT_TEXT.kill('Jugger', ['SF'], 1), 'Jugger killed SF');
+  assert.equal(EVENT_TEXT.kill('AM', ['SF', 'PA'], 2), 'AM killed SF and PA');
+  assert.equal(EVENT_TEXT.kill('TS', [], 1), 'TS kill');
+});
+
 test('every line drawn on either display is plain ASCII', () => {
   const frames = [
     buildFrame(snapshot(), frameOptions()),
