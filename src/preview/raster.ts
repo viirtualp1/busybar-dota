@@ -69,15 +69,27 @@ function drawRectangle(
   element: RectangleElement,
   greyscale: boolean,
 ): void {
-  const color = shade(parseColor(element.fill_colors?.[0] ?? '#00000000'), greyscale);
-  const { x, y } = anchor(
-    element.align,
-    element.x,
-    element.y,
-    element.width ?? 0,
-    element.height ?? 0,
-  );
-  bitmap.fillRect(x, y, element.width ?? 0, element.height ?? 0, color);
+  const width = element.width ?? 0;
+  const height = element.height ?? 0;
+  const { x, y } = anchor(element.align, element.x, element.y, width, height);
+
+  if (element.fill !== 'none') {
+    const fill = shade(parseColor(element.fill_colors?.[0] ?? '#00000000'), greyscale);
+    bitmap.fillRect(x, y, width, height, fill);
+  }
+
+  // Border last, so it sits on top of its own fill.
+  const borderWidth = element.border_width ?? 0;
+  if (borderWidth <= 0) {
+    return;
+  }
+  const border = shade(parseColor(element.border_color ?? '#00000000'), greyscale);
+  for (let ring = 0; ring < borderWidth; ring += 1) {
+    bitmap.fillRect(x + ring, y + ring, width - ring * 2, 1, border);
+    bitmap.fillRect(x + ring, y + height - 1 - ring, width - ring * 2, 1, border);
+    bitmap.fillRect(x + ring, y + ring, 1, height - ring * 2, border);
+    bitmap.fillRect(x + width - 1 - ring, y + ring, 1, height - ring * 2, border);
+  }
 }
 
 function drawText(bitmap: Bitmap, element: TextElement, greyscale: boolean): void {

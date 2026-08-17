@@ -1,7 +1,12 @@
 import { BACK } from '../src/bar/layout.js';
 import { HeroCatalog } from '../src/dota/heroes.js';
 import type { Schedule } from '../src/dota/schedule/index.js';
-import type { BackCell, BackRow, FrameOptions } from '../src/view/frame.js';
+import {
+  FRONT_LINE_CHARS,
+  type BackCell,
+  type BackRow,
+  type FrameOptions,
+} from '../src/view/frame.js';
 
 export const heroes = new HeroCatalog();
 
@@ -14,6 +19,8 @@ export function frameOptions(overrides: Partial<FrameOptions> = {}): FrameOption
     schedule: null,
     seriesBreak: null,
     idleNote: '',
+    tickerStyle: 'page',
+    tickerChars: FRONT_LINE_CHARS,
     ...overrides,
   };
 }

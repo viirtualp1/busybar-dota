@@ -257,6 +257,8 @@ export class App {
             schedule: this.schedule,
             seriesBreak: this.seriesBreak,
             idleNote: this.idleNote,
+            tickerStyle: this.config.tickerStyle,
+            tickerChars: this.config.tickerChars,
           }),
         );
       } catch (error) {

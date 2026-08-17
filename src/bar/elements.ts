@@ -1,7 +1,7 @@
 import type { RectangleElement, TextElement } from '@busy-app/busy-lib';
 import { COLORS } from '../view/colors.js';
 import type { DotaFrame } from '../view/frame.js';
-import { BACK, clipToWidth, FRONT, rowY } from './layout.js';
+import { BACK, clipToWidth, FONT_WIDTH, FRONT, rowY } from './layout.js';
 
 /**
  * The front display *is* the net worth bar: the two team colours split the 72px
@@ -90,9 +90,29 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       // left edge of a box and pushes the text half a box to the right.
       align: 'top_mid',
       x: Math.floor(FRONT.width / 2),
+      y: frame.finalTags ? FRONT.finalRowY : FRONT.bottomY,
+      timeout: 0,
+    },
+    // Who is ahead on gold. Coloured by side, since the front is the one panel
+    // where hue actually carries information.
+    {
+      id: 'lead',
+      type: 'text',
+      text: ticking || !frame.leadText ? ' ' : frame.leadText,
+      font: 'tiny',
+      color:
+        !ticking && frame.leadText
+          ? frame.leadSide === 'radiant'
+            ? COLORS.radiant
+            : COLORS.dire
+          : COLORS.transparent,
+      display: 'front',
+      align: 'top_right',
+      x: FRONT.width - 1,
       y: FRONT.bottomY,
       timeout: 0,
     },
+    ...finalElements(frame),
     {
       id: 'ticker',
       type: 'text',
@@ -106,6 +126,98 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       timeout: 0,
     },
   ];
+}
+
+/**
+ * The result screen: both tags in bold with a box around the winner.
+ *
+ * Fixed element count, like every other row here, so switching modes cannot
+ * leave half a box behind.
+ */
+function finalElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
+  const final = frame.finalTags;
+  const won = (side: 'radiant' | 'dire'): boolean => final?.winner === side;
+
+  const radiantWidth = boxWidth(final?.radiant ?? '');
+  const direWidth = boxWidth(final?.dire ?? '');
+
+  return [
+    boxRect('final-box-radiant', 0, radiantWidth, won('radiant') && final !== null),
+    boxRect(
+      'final-box-dire',
+      FRONT.width - direWidth,
+      direWidth,
+      won('dire') && final !== null,
+    ),
+    finalTag('final-radiant', final?.radiant ?? '', 'top_left', 3, won('radiant')),
+    finalTag(
+      'final-dire',
+      final?.dire ?? '',
+      'top_right',
+      FRONT.width - 3,
+      won('dire'),
+    ),
+  ];
+}
+
+/** The box hugs its tag rather than sitting at a fixed width around a short one. */
+function boxWidth(tag: string): number {
+  const text = Math.max(1, tag.length) * FONT_WIDTH.bold;
+  return Math.min(FRONT.width / 2 - 1, text + 6);
+}
+
+/**
+ * Full height. The series score shares the row between the two tags rather than
+ * sitting under them: at 16px there is no room for a box, a bold tag inside it
+ * and a line beneath without something touching a border.
+ */
+const FINAL_BOX_HEIGHT = FRONT.height;
+
+function boxRect(
+  id: string,
+  x: number,
+  width: number,
+  visible: boolean,
+): RectangleElement {
+  return {
+    id,
+    type: 'rectangle',
+    display: 'front',
+    align: 'top_left',
+    x,
+    y: 0,
+    width,
+    height: FINAL_BOX_HEIGHT,
+    // Border only: a filled box would swallow the tag drawn on top of it.
+    fill: 'none',
+    fill_colors: [COLORS.transparent],
+    border_width: visible ? 1 : 0,
+    border_color: visible ? COLORS.white : COLORS.transparent,
+    timeout: 0,
+  };
+}
+
+function finalTag(
+  id: string,
+  text: string,
+  align: 'top_left' | 'top_right',
+  x: number,
+  winner: boolean,
+): TextElement {
+  return {
+    id,
+    type: 'text',
+    text: text || ' ',
+    font: 'bold',
+    // The loser recedes rather than disappearing — you want to read the pairing.
+    color: text ? (winner ? COLORS.white : COLORS.dim) : COLORS.transparent,
+    display: 'front',
+    align,
+    x,
+    // Roughly centred for a ten-pixel bold glyph in a sixteen-pixel panel.
+    y: 3,
+    timeout: 0,
+  };
 }
 
 function bandRect(id: string, x: number, width: number, color: string): RectangleElement {

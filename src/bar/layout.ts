@@ -5,6 +5,8 @@ export const FRONT = {
   scoreY: 0,
   /** Tiny bottom row: clock on the left, series on the right. */
   bottomY: 11,
+  /** The result screen puts everything on one row, vertically centred. */
+  finalRowY: 5,
   clockWidth: 30,
   seriesWidth: 26,
 } as const;

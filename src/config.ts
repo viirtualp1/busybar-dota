@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ScheduleKind } from './dota/schedule/index.js';
+import type { TickerStyle } from './view/ticker-text.js';
 
 export type Config = {
   busyAddr: string;
@@ -17,6 +18,8 @@ export type Config = {
   requestTimeoutMs: number;
   demo: boolean;
   sounds: boolean;
+  tickerStyle: TickerStyle;
+  tickerChars: number;
   killSoundGapMs: number;
   scheduleKind: ScheduleKind;
   scheduleFile: string;
@@ -41,6 +44,14 @@ export const DEFAULTS = {
   requestTimeoutMs: 10_000,
   /** A teamfight can surface several kills in one poll; one chirp is plenty. */
   killSoundGapMs: 4000,
+  /**
+   * Glyphs of tiny text assumed to fit across the 72px front display.
+   *
+   * Deliberately conservative: the device fonts are proportional and this code
+   * cannot measure them, so it budgets 4px a glyph. If lines page that plainly
+   * had room to sit still, raise this until they stop.
+   */
+  tickerChars: 17,
 } as const;
 
 const LIMITS = {
@@ -50,6 +61,7 @@ const LIMITS = {
   requestTimeoutMs: { min: 1000, max: 30_000 },
   leagueId: { min: 0, max: 100_000_000 },
   killSoundGapMs: { min: 0, max: 60_000 },
+  tickerChars: { min: 8, max: 40 },
 } as const;
 
 export function loadEnvFile(cwd = process.cwd()): void {
@@ -165,6 +177,10 @@ export function loadConfig(
       ),
       demo,
       sounds: read('SOUNDS') !== '0',
+      // Paging by default: at five redraws a second a scrolling line steps a
+      // whole glyph at a time and reads as a stutter.
+      tickerStyle: read('TICKER_STYLE').toLowerCase() === 'scroll' ? 'scroll' : 'page',
+      tickerChars: number('TICKER_CHARS', DEFAULTS.tickerChars, LIMITS.tickerChars),
       killSoundGapMs: number(
         'KILL_SOUND_GAP_MS',
         DEFAULTS.killSoundGapMs,

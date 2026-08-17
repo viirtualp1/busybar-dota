@@ -1,5 +1,10 @@
 import { FONT_WIDTH, FRONT, radiantFillWidth } from '../bar/layout.js';
-import { fittingChars, marquee, marqueeLoop } from './marquee.js';
+import {
+  fittingChars,
+  tickerLine as renderTickerLine,
+  tickerLineLooping,
+  type TickerStyle,
+} from './ticker-text.js';
 import type { MatchEvent, MatchEventKind } from '../domain/events.js';
 import type { HeroCatalog } from '../dota/heroes.js';
 import {
@@ -53,8 +58,14 @@ export type DotaFrame = {
   /** The column rule belongs to two-column layouts only. */
   showDivider: boolean;
   ledColor: string;
+  /** Bottom-right of the front: who is ahead on gold, and by how much. */
+  leadText: string;
+  /** Which side the lead belongs to, so the front can colour it. */
+  leadSide: 'radiant' | 'dire' | null;
   /** When set, it takes over the front's bottom row for a few seconds. */
   tickerText: string;
+  /** Result screen: the two tags, big, with a box around the winner. */
+  finalTags: { radiant: string; dire: string; winner: 'radiant' | 'dire' | null } | null;
   backHeader: string;
   backSub: string;
   backRows: BackRow[];
@@ -73,6 +84,10 @@ export type FrameOptions = {
   seriesBreak: SeriesBreak | null;
   /** Shown on the back display when there is nothing at all to show. */
   idleNote: string;
+  /** `page` holds each chunk still; `scroll` moves the line. */
+  tickerStyle: TickerStyle;
+  /** Glyphs that fit on one front-display line. */
+  tickerChars: number;
 };
 
 /**
@@ -110,14 +125,19 @@ export const ROSTER_ROTATE_MS = 3000;
 
 const emptyRow: BackRow = { kind: 'pair', left: null, right: null };
 
-/** Glyphs of tiny text that fit across the front display. */
+/** The conservative default, used when nothing else says otherwise. */
 export const FRONT_LINE_CHARS = fittingChars(FRONT.width - 2, FONT_WIDTH.tiny);
 
-function tickerLine(options: FrameOptions): string {
+function eventLine(options: FrameOptions): string {
   if (!options.ticker) {
     return '';
   }
-  return marquee(options.ticker.event.text, FRONT_LINE_CHARS, options.ticker.elapsedMs);
+  return renderTickerLine(
+    options.tickerStyle,
+    options.ticker.event.text,
+    options.tickerChars,
+    options.ticker.elapsedMs,
+  );
 }
 
 export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): DotaFrame {
@@ -154,7 +174,9 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
     showBands: true,
     showDivider: true,
     ledColor: ledFor(options.ticker?.event ?? null),
-    tickerText: tickerLine(options),
+    ...leadFields(lead),
+    tickerText: eventLine(options),
+    finalTags: null,
     // Left name is the left column, right name is the right column — the header
     // is what makes the divider mean something.
     backHeader: `${snapshot.radiant.name} | ${snapshot.dire.name}`,
@@ -178,28 +200,56 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
  * the desk is who won, and a countdown to a match hours away can wait.
  */
 function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
-  const elapsed = options.nowEpochMs - current.startedAtMs;
-  const headline = current.lastWinner
-    ? `${current.lastWinner === 'radiant' ? current.radiantTag : current.direTag} WIN`
-    : 'GAME OVER';
+  const series = `${current.radiantWins}-${current.direWins}`;
 
   return {
     mode: 'result',
-    scoreText: headline,
+    // The tags are drawn as their own elements so the winner can be boxed;
+    // nothing goes in the shared score slot.
+    scoreText: '',
     radiantTag: '',
     direTag: '',
+    // Series score under the names, and nothing else competing with it.
     clockText: '',
-    seriesText: '',
+    seriesText: current.pendingResult ? '' : series,
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: COLORS.ledStart,
-    tickerText: marquee(resultText(current), FRONT_LINE_CHARS, elapsed),
+    leadText: '',
+    leadSide: null,
+    tickerText: '',
+    finalTags: {
+      radiant: current.radiantTag,
+      dire: current.direTag,
+      winner: current.lastWinner,
+    },
     backHeader: `${current.radiantName} | ${current.direName}`,
-    backSub: `${resultText(current)}  series ${current.radiantWins}-${current.direWins}`,
+    backSub: `${resultText(current)}. Series ${series}`,
     backRows: options.schedule
       ? bracketRows(options.schedule, options.maxRows)
       : Array.from({ length: options.maxRows }, () => emptyRow),
+  };
+}
+
+/**
+ * Who is ahead on gold, for the bottom-right of the front display.
+ *
+ * Blank under a threshold: a two-hundred-gold "lead" is noise, and a number
+ * that flickers between the two teams every poll is worse than no number.
+ */
+const LEAD_FLOOR = 500;
+
+function leadFields(lead: number): Pick<DotaFrame, 'leadText' | 'leadSide'> {
+  if (Math.abs(lead) < LEAD_FLOOR) {
+    return { leadText: '', leadSide: null };
+  }
+  // No team tag: `FLC+9.6k` is eight glyphs and collides with the centred series
+  // score. The colour says whose lead it is, which is what the front panel is
+  // for — the back display spells it out in words instead.
+  return {
+    leadText: `+${formatGold(lead)}`,
+    leadSide: lead > 0 ? 'radiant' : 'dire',
   };
 }
 
@@ -231,11 +281,15 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     showBands: false,
     showDivider: false,
     ledColor: '',
+    leadText: '',
+    leadSide: null,
+    finalTags: null,
     // The finished game's result, spelled out, under the countdown — the
     // `1-0*` and `G3` that used to sit here explained nothing.
-    tickerText: marquee(
-      `${resultText(current)} — series ${score}, game ${current.nextGame} next`,
-      FRONT_LINE_CHARS,
+    tickerText: renderTickerLine(
+      options.tickerStyle,
+      `${resultText(current)}. Series ${score}, game ${current.nextGame} next`,
+      options.tickerChars,
       options.nowEpochMs - current.startedAtMs,
     ),
     backHeader: `${current.radiantName} | ${current.direName}`,
@@ -278,7 +332,7 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
   const recent = options.seriesBreak;
   const line =
     recent && isResultFresh(recent, options.nowEpochMs)
-      ? `${resultText(recent)}  ·  next: ${matchup}`
+      ? `${resultText(recent)}. Next: ${matchup}`
       : matchup;
 
   return {
@@ -288,7 +342,15 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     direTag: '',
     clockText: '',
     seriesText: '',
-    tickerText: marqueeLoop(line, FRONT_LINE_CHARS, options.nowEpochMs),
+    leadText: '',
+    leadSide: null,
+    finalTags: null,
+    tickerText: tickerLineLooping(
+      options.tickerStyle,
+      line,
+      options.tickerChars,
+      options.nowEpochMs,
+    ),
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
@@ -446,6 +508,9 @@ function idleFrame(note: string, maxRows: number): DotaFrame {
     showBands: false,
     showDivider: false,
     ledColor: '',
+    leadText: '',
+    leadSide: null,
+    finalTags: null,
     tickerText: '',
     backHeader: 'No live match',
     backSub: note,

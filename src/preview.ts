@@ -58,6 +58,8 @@ const frame = buildFrame(snapshot, {
     upcoming || breakOnly || resultShot || !snapshot.live ? await captureSchedule() : null,
   seriesBreak: breakOnly || resultShot ? demoBreak() : null,
   idleNote: 'nothing live right now',
+  tickerStyle: config.tickerStyle,
+  tickerChars: config.tickerChars,
 });
 
 const front = renderFront(frontElements(frame)).scale(SCALE);

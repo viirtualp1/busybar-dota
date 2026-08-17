@@ -50,9 +50,10 @@ test('the rendered displays are exactly device sized', () => {
 test('the front keeps team colour, since it is an RGB panel', () => {
   const frame = buildFrame(snapshot(), options);
   const bitmap = renderFront(frontElements(frame));
-  // Radiant leads, so the left edge is its fill and the right edge is Dire's.
-  const left = pixel(bitmap, 1, 15);
-  const right = pixel(bitmap, FRONT.width - 2, 15);
+  // Row 10 is the gap between the bold score above and the tiny row below, so
+  // it samples the band itself rather than whatever text is sitting on it.
+  const left = pixel(bitmap, 1, 10);
+  const right = pixel(bitmap, FRONT.width - 2, 10);
   assert.ok(left.g > left.r, 'radiant band should be green-dominant');
   assert.ok(right.r > right.g, 'dire band should be red-dominant');
 });

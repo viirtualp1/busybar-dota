@@ -62,7 +62,7 @@ export function isResultFresh(current: SeriesBreak, nowMs: number): boolean {
 export function resultText(current: SeriesBreak): string {
   const game = current.nextGame - 1;
   if (!current.lastWinner) {
-    return `Game ${game}: ${current.radiantName} vs ${current.direName} — result pending`;
+    return `Game ${game}: ${current.radiantName} vs ${current.direName}, result pending`;
   }
   const [winner, loser] =
     current.lastWinner === 'radiant'

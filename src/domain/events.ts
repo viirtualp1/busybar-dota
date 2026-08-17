@@ -31,6 +31,45 @@ export type MatchEvent = {
   sound: boolean;
 };
 
+
+/**
+ * Every word that reaches the display, in one place.
+ *
+ * This is the file to edit to reword an event — nothing below builds a sentence
+ * of its own. Keep it **plain ASCII**: the Bar draws a placeholder box for
+ * glyphs its font lacks, so an em dash or a middle dot arrives as a stray
+ * rectangle. `assertAscii` in the tests guards that.
+ *
+ * Lines longer than the front display are paged on word boundaries, so long
+ * wording is fine — it just takes another 2.2 seconds to read.
+ */
+export const EVENT_TEXT = {
+  matchStart: (radiant: string, dire: string): string =>
+    `Game on: ${radiant} vs ${dire}`,
+  matchEnd: (): string => 'Game over',
+  roshan: (respawnMin: number): string =>
+    `Roshan killed, respawns in ${respawnMin} min`,
+  /** `what` is already spelled out, e.g. `mid tier 2`. */
+  building: (tag: string, what: string, noun: string): string =>
+    `${tag} lost ${what} ${noun}`,
+  kill: (tag: string, gained: number, score: string): string =>
+    `${tag} ${gained > 1 ? `${gained} kills` : 'kill'}, ${score}`,
+} as const;
+
+/** How buildings are named once written out. Edit here to rename a lane. */
+export const BUILDING_WORDS = {
+  tier: (n: string): string => `tier ${n}`,
+  top: 'top',
+  mid: 'mid',
+  bottom: 'bottom',
+  melee: 'melee',
+  ranged: 'ranged',
+  towerSingular: 'tower',
+  towerPlural: 'towers',
+  /** Already plural in English; "barrackss" is not a word. */
+  barracks: 'barracks',
+} as const;
+
 /**
  * `tower_state` bit layout, per team.
  *
@@ -126,7 +165,7 @@ export function detectEvent(
         ? {
             kind: 'match-start',
             side: null,
-            text: `Game on: ${snapshot.radiant.name} vs ${snapshot.dire.name}`,
+            text: EVENT_TEXT.matchStart(snapshot.radiant.name, snapshot.dire.name),
             priority: 90,
             sound: true,
           }
@@ -139,7 +178,7 @@ export function detectEvent(
       event: {
         kind: 'match-end',
         side: null,
-        text: 'Game over',
+        text: EVENT_TEXT.matchEnd(),
         priority: 100,
         sound: true,
       },
@@ -175,7 +214,7 @@ function roshanEvent(previous: EventState, state: EventState): MatchEvent | null
     return {
       kind: 'roshan',
       side: null,
-      text: `Roshan killed, respawns in ${Math.round(after / 60)} min`,
+      text: EVENT_TEXT.roshan(Math.round(after / 60)),
       priority: 75,
       sound: true,
     };
@@ -268,13 +307,16 @@ function buildingEvent(
     return null;
   }
 
-  // "barracks" is already plural; "barrackss" is not a word.
   const noun =
-    kind === 'tower' ? (lost.length > 1 ? 'towers' : 'tower') : 'barracks';
+    kind === 'tower'
+      ? lost.length > 1
+        ? BUILDING_WORDS.towerPlural
+        : BUILDING_WORDS.towerSingular
+      : BUILDING_WORDS.barracks;
   return {
     kind,
     side,
-    text: `${tag} lost ${spellOut(lost)} ${noun}`,
+    text: EVENT_TEXT.building(tag, spellOut(lost), noun),
     // A double loss in one poll is a bigger deal than a single one.
     priority: priority + lost.length,
     sound: true,
@@ -287,8 +329,8 @@ function spellOut(lost: readonly string[]): string {
     .map((name) =>
       name
         .toLowerCase()
-        .replace(/\bt(\d)\b/g, 'tier $1')
-        .replace(/\bbot\b/g, 'bottom'),
+        .replace(/\bt(\d)\b/g, (_, digit: string) => BUILDING_WORDS.tier(digit))
+        .replace(/\bbot\b/g, BUILDING_WORDS.bottom),
     )
     .join(' and ');
 }
@@ -311,7 +353,7 @@ function killEvent(
   return {
     kind: 'kill',
     side,
-    text: `${tag} ${gained > 1 ? `${gained} kills` : 'kill'} — ${score}`,
+    text: EVENT_TEXT.kill(tag, gained, score),
     priority: 10,
     sound: false,
   };

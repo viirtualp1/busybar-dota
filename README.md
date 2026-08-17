@@ -16,12 +16,34 @@ single number.
 - Kill score, big and centred, with the series score directly beneath it
 - Team tags in their side's colour
 - Game clock (negative during the pre-horn countdown, like the game itself)
+- **Who is ahead on gold, bottom right** — `+9.6k`, coloured green or red for
+  the side that is ahead. No team tag: it would collide with the centred series
+  score, and colour is what the front panel is for. Blank under 500 gold, since
+  a number that flips teams every poll is worse than no number
 - **Event ticker**: when a tower, barracks or Roshan goes down, the bottom row
   hands itself over — `FLC lost mid tier 2 tower`, `Roshan killed, respawns in
 9 min` — with an LED flash and a sound, then gives the clock back. Anything
   too long to fit **scrolls** rather than being abbreviated: `FAL MID RAX` saved
   pixels and lost the meaning. Kills appear silently, because there are dozens
   of them and one chirp each is a machine gun.
+
+**Long lines page, they do not scroll**
+
+Nothing is abbreviated any more — `FAL MID RAX` saved pixels and lost the
+meaning — so anything past seventeen glyphs has to be shown over time. It is
+broken on word boundaries and each chunk holds still for 2.2 seconds.
+
+How many glyphs fit is a guess — the device fonts are proportional and this code
+cannot measure them, so it budgets 4px each and gets 17. `TICKER_CHARS` raises
+that if lines page when they plainly had room to sit still.
+
+Scrolling was tried first and read badly, for a reason worth writing down: the
+display redraws about five times a second. A step small enough to look smooth is
+one pixel, which crawls at 5px/s; a step fast enough to finish a sentence moves a
+whole 4px glyph at a time, which reads as a stutter rather than motion. The
+original 180ms step against a 200ms redraw was not even a whole multiple, so
+steps landed on alternating frames and visibly jittered. `TICKER_STYLE=scroll`
+brings the moving line back, now with its step aligned to the redraw.
 
 **Back**
 
@@ -37,8 +59,9 @@ barracks` — since there is room for the detail the front cannot fit.
 
 **When a game ends** — the result takes the screen
 
-For two minutes the display is only about who won: `TS WIN` in bold with
-`Game 1: Team Spirit beat Falcons` scrolling beneath it, countdown hidden. Then
+For two minutes the display is only about who won: both tags in bold with a box
+drawn around the winner, the series score between them, and nothing else. The
+loser is dimmed rather than hidden, because you want to read the pairing. Then
 the countdown comes back and the result keeps showing underneath it for the next
 twenty minutes.
 
@@ -293,6 +316,18 @@ faster, so LED flashes stay crisp.
 
 **Upstream hiccups keep the last frame.** A failed poll leaves the previous
 numbers on screen rather than blanking the display — slightly stale beats empty.
+
+## Changing the wording
+
+Every sentence that reaches the display is in one block at the top of
+[`src/domain/events.ts`](src/domain/events.ts) — `EVENT_TEXT` for the events
+themselves and `BUILDING_WORDS` for how lanes and tiers are named. Nothing below
+that block builds a sentence of its own, so rewording is a one-file edit.
+
+Keep it plain ASCII. The Bar draws a placeholder box for glyphs its font lacks,
+so an em dash or a middle dot arrives as a stray rectangle mid-sentence — which
+is exactly what the first version did. A test walks every event and every drawn
+line and fails on any character above ASCII 126.
 
 ## Things worth building next
 
