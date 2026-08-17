@@ -45,15 +45,13 @@ export type MatchEvent = {
  */
 export const EVENT_TEXT = {
   matchStart: (radiant: string, dire: string): string =>
-    `Game on: ${radiant} vs ${dire}`,
+    `${radiant} vs ${dire}`,
   matchEnd: (): string => 'Game over',
-  roshan: (respawnMin: number): string =>
-    `Roshan killed, respawns in ${respawnMin} min`,
-  /** `what` is already spelled out, e.g. `mid tier 2`. */
+  roshan: (): string => `Roshan killed`,
   building: (tag: string, what: string, noun: string): string =>
     `${tag} lost ${what} ${noun}`,
-  kill: (tag: string, gained: number, score: string): string =>
-    `${tag} ${gained > 1 ? `${gained} kills` : 'kill'}, ${score}`,
+  kill: (tag: string, gained: number): string =>
+    `${tag} ${gained > 1 ? `${gained} kills` : 'kill'}`,
 } as const;
 
 /** How buildings are named once written out. Edit here to rename a lane. */
@@ -214,7 +212,7 @@ function roshanEvent(previous: EventState, state: EventState): MatchEvent | null
     return {
       kind: 'roshan',
       side: null,
-      text: EVENT_TEXT.roshan(Math.round(after / 60)),
+      text: EVENT_TEXT.roshan(),
       priority: 75,
       sound: true,
     };
@@ -348,12 +346,11 @@ function killEvent(
   const side: Side = radiantGained >= direGained ? 'radiant' : 'dire';
   const tag = side === 'radiant' ? snapshot.radiant.tag : snapshot.dire.tag;
   const gained = Math.max(radiantGained, direGained);
-  const score = `${snapshot.radiant.kills}-${snapshot.dire.kills}`;
 
   return {
     kind: 'kill',
     side,
-    text: EVENT_TEXT.kill(tag, gained, score),
+    text: EVENT_TEXT.kill(tag, gained),
     priority: 10,
     sound: false,
   };
