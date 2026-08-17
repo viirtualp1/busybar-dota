@@ -1,21 +1,21 @@
-import type { BarDisplay } from './bar/display.js';
-import { errorMessage, isForbidden } from './bar/errors.js';
-import { BACK } from './bar/layout.js';
-import type { Config } from './config.js';
-import { detectEvent, initialEventState, type EventState } from './domain/events.js';
-import { EventTicker } from './domain/ticker.js';
+import type { BarDisplay } from './bar/display';
+import { errorMessage, isForbidden } from './bar/errors';
+import { BACK } from './bar/layout';
+import type { Config } from './config';
+import { detectEvent, initialEventState, type EventState } from './domain/events';
+import { EventTicker } from './domain/ticker';
 import {
   applyResult,
   beginBreak,
   isBreakExpired,
   type SeriesBreak,
-} from './domain/series.js';
-import type { HeroCatalog } from './dota/heroes.js';
-import type { ResultLookup } from './dota/match-result.js';
-import type { Schedule, ScheduleSource } from './dota/schedule/index.js';
-import type { MatchSource } from './dota/source.js';
-import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
-import { buildFrame } from './view/frame.js';
+} from './domain/series';
+import type { HeroCatalog } from './dota/heroes';
+import type { ResultLookup } from './dota/match-result';
+import type { Schedule, ScheduleSource } from './dota/schedule/index';
+import type { MatchSource } from './dota/source';
+import { idleSnapshot, type MatchSnapshot } from './dota/types';
+import { buildFrame } from './view/frame';
 
 export type Logger = {
   info: (message: string) => void;
@@ -35,11 +35,6 @@ export type AppDeps = {
 const BAR_RETRY_MS = 2000;
 const REPEAT_WARNING_MS = 30_000;
 
-/**
- * Schedules move on the order of hours, so they are polled far more slowly than
- * the live match — and only while nothing is live, which is the only time the
- * answer is on screen.
- */
 const SCHEDULE_POLL_MS = 120_000;
 
 export class App {
@@ -55,7 +50,7 @@ export class App {
   private snapshot: MatchSnapshot = idleSnapshot();
   private schedule: Schedule | null = null;
   private scheduleFetchedAt = 0;
-  /** The last snapshot that was actually live, kept to detect a series break. */
+
   private lastLive: MatchSnapshot | null = null;
   private seriesBreak: SeriesBreak | null = null;
   private events: EventState = initialEventState;
@@ -74,25 +69,24 @@ export class App {
     this.logger = deps.logger ?? console;
   }
 
-  async start(): Promise<void> {
+  async start() {
     this.running = true;
     await this.connectBar();
     if (!this.running) {
       return;
     }
-    // Hero names are cosmetic: a failed catalog shows `#42` rather than
-    // blocking the whole display behind a third-party request.
+
     if (!(await this.heroes.load())) {
       this.logger.warn('Hero names unavailable, showing hero ids');
     }
     this.loops = [this.pollLoop(), this.renderLoop()];
   }
 
-  async wait(): Promise<void> {
+  async wait() {
     await Promise.all(this.loops);
   }
 
-  async stop(): Promise<void> {
+  async stop() {
     if (!this.running) {
       return;
     }
@@ -101,11 +95,11 @@ export class App {
     try {
       await this.display.clear();
     } catch {
-      // the device may already be gone
+      /* bar already gone */
     }
   }
 
-  private async connectBar(): Promise<void> {
+  private async connectBar() {
     while (this.running) {
       try {
         await this.display.ping();
@@ -126,7 +120,7 @@ export class App {
     }
   }
 
-  private async pollLoop(): Promise<void> {
+  private async pollLoop() {
     while (this.running) {
       try {
         const next = await this.source.poll();
@@ -139,8 +133,6 @@ export class App {
           await this.refreshSchedule();
         }
       } catch (error) {
-        // Keep the last good frame on screen: a blank bar during a five-second
-        // upstream hiccup is worse than slightly stale numbers.
         this.idleNote = errorMessage(error);
         this.warnRepeated('source', `${this.source.label}: ${errorMessage(error)}`);
       }
@@ -149,16 +141,8 @@ export class App {
     }
   }
 
-  /**
-   * Notices a series going on break, and resolves who won the game that ended.
-   *
-   * The live feed drops a game the moment it finishes and the series score it
-   * carried was the score *going into* that game, so the winner has to be looked
-   * up separately or the break would show a score one game out of date.
-   */
-  private async trackSeries(live: MatchSnapshot | null): Promise<void> {
+  private async trackSeries(live: MatchSnapshot | null) {
     if (live) {
-      // A game is running, so any break is over.
       this.lastLive = live;
       this.seriesBreak = null;
       return;
@@ -179,17 +163,17 @@ export class App {
     if (!this.seriesBreak) {
       return;
     }
+
     if (isBreakExpired(this.seriesBreak, now)) {
       this.logger.info('[series break] nothing resumed, falling back to the schedule');
       this.seriesBreak = null;
       return;
     }
+
     if (!this.seriesBreak.pendingResult) {
       return;
     }
 
-    // Expected to come back empty for the first few minutes while the match is
-    // still being ingested; every poll is another attempt.
     const winner = await this.results.winnerOf(this.seriesBreak.lastMatchId);
     if (!winner) {
       return;
@@ -203,20 +187,17 @@ export class App {
     );
   }
 
-  /** Kept out of the main poll rhythm: a bracket does not change every 5 seconds. */
-  private async refreshSchedule(): Promise<void> {
+  private async refreshSchedule() {
     const now = Date.now();
     if (this.schedule && now - this.scheduleFetchedAt < SCHEDULE_POLL_MS) {
       return;
     }
+
     try {
       this.schedule = await this.scheduleSource.poll();
       this.scheduleFetchedAt = now;
       this.warnings.delete('schedule');
     } catch (error) {
-      // A missing schedule is not fatal — the display falls back to the plain
-      // idle screen rather than showing a stale countdown to a match that
-      // already started.
       this.warnRepeated(
         'schedule',
         `${this.scheduleSource.label}: ${errorMessage(error)}`,
@@ -224,27 +205,26 @@ export class App {
     }
   }
 
-  private handleEvents(): void {
+  private handleEvents() {
     const { event, state } = detectEvent(this.events, this.snapshot);
     this.events = state;
     if (event === null) {
       return;
     }
+
     if (!this.ticker.push(event, this.now())) {
-      // Something more important is still on screen; do not chirp underneath it.
       return;
     }
 
     this.logger.info(`[${event.kind}] ${event.text}`);
     if (this.config.sounds) {
       void this.display.playEvent(event).catch(() => {
-        // sound is cosmetic
+        /* sound is optional */
       });
     }
   }
 
-  /** Display failures must not take the polling loop down with them. */
-  private async renderLoop(): Promise<void> {
+  private async renderLoop() {
     while (this.running) {
       const now = this.now();
       try {
@@ -269,7 +249,7 @@ export class App {
     }
   }
 
-  private warnRepeated(key: string, message: string): void {
+  private warnRepeated(key: string, message: string) {
     const now = this.now();
     const previous = this.warnings.get(key);
     if (
@@ -283,11 +263,11 @@ export class App {
     this.logger.warn(message);
   }
 
-  private now(): number {
+  private now() {
     return performance.now();
   }
 
-  private sleep(ms: number): Promise<void> {
+  private sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

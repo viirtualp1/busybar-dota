@@ -87,12 +87,10 @@ default of 17 glyphs most real team names will take that fallback; raise
 `TICKER_CHARS` until they stop, since the device font is very likely narrower
 than the 4px a glyph this code has to assume.
 
-The back display carries the date, time and series length, plus the bracket with
-the upcoming tie marked `>` and the rest dimmed.
-
-The round label in the bracket only appears when the round _changes_ — four
-quarterfinals in a row do not each need to say `UBQ`, and dropping the
-repetition gives the team names the width instead.
+The back display carries the date, time and series length of the next match,
+then the rest of the known schedule: start time and matchup on each row, the
+next one brighter than the ones after it. A later day is named on that row so
+two 06:00s are not confused. Finished games stay off this list.
 
 This needs a schedule source, and there is not a free one — see below.
 

@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { backElements } from '../src/bar/elements.js';
-import { DemoSource } from '../src/dota/source.js';
+import { backElements } from '../src/bar/elements';
+import { DemoSource } from '../src/dota/source';
 import {
   emptyTeam,
   idleSnapshot,
   isDrafting,
   type MatchSnapshot,
-} from '../src/dota/types.js';
-import { buildFrame } from '../src/view/frame.js';
+} from '../src/dota/types';
+import { buildFrame } from '../src/view/frame';
 
-import { frameOptions, pairOf } from './helpers.js';
+import { frameOptions, pairOf } from './helpers';
 
 const options = frameOptions();
 
@@ -58,7 +58,7 @@ test('draft rows list picks in order, one column per team', () => {
   const frame = buildFrame(drafting(), options);
   assert.equal(pairOf(frame.backRows[0]).left?.stats, '#1');
   assert.equal(pairOf(frame.backRows[1]).left?.stats, '#2');
-  // Dire only picked once, so its second slot stays empty rather than shifting up.
+
   assert.equal(pairOf(frame.backRows[1]).right, null);
 });
 
@@ -83,7 +83,6 @@ test('the back display carries a divider, since grey hides team colour', () => {
 });
 
 test('the demo walks through a draft before the game starts', async () => {
-  // Two seconds in is mid-draft at the demo's 20x speed.
   const midDraft = await new DemoSource(Date.now() - 2000).poll();
   assert.ok(midDraft);
   assert.equal(isDrafting(midDraft), true);

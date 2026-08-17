@@ -1,15 +1,6 @@
-/**
- * A 3x5 bitmap font for the offline preview.
- *
- * This is NOT the device font. The Bar renders real TTFs baked to a glyph atlas,
- * and there is no way to get at those from Node. The preview is therefore exact
- * about geometry, colour and layout, and approximate about glyph shapes — it
- * will tell you that a column overflows or that the wrong thing is on screen,
- * not whether a specific letter is one pixel narrower on hardware.
- */
 export const GLYPH_WIDTH = 3;
 export const GLYPH_HEIGHT = 5;
-/** One blank column between glyphs, matching the device's 4px tiny advance. */
+
 export const GLYPH_ADVANCE = GLYPH_WIDTH + 1;
 
 const GLYPHS: Record<string, readonly string[]> = {
@@ -71,21 +62,20 @@ const GLYPHS: Record<string, readonly string[]> = {
   ' ': ['000', '000', '000', '000', '000'],
 };
 
-/** Unknown characters render as a filled block rather than vanishing silently. */
 const FALLBACK = ['111', '101', '101', '101', '111'] as const;
 
 export function glyph(character: string): readonly string[] {
   return GLYPHS[character.toUpperCase()] ?? FALLBACK;
 }
 
-/** Width in pixels of `text` at a given integer scale. */
-export function textWidth(text: string, scale: number): number {
+export function textWidth(text: string, scale: number) {
   if (text.length === 0) {
     return 0;
   }
+
   return (text.length * GLYPH_ADVANCE - 1) * scale;
 }
 
-export function textHeight(scale: number): number {
+export function textHeight(scale: number) {
   return GLYPH_HEIGHT * scale;
 }

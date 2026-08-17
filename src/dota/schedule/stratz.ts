@@ -1,29 +1,9 @@
-/**
- * STRATZ GraphQL schedule source.
- *
- * ⚠️ WRITTEN TO SPEC, NOT VERIFIED AGAINST A LIVE RESPONSE. STRATZ token signup
- * was broken when this was written, so the query below follows their documented
- * `League.nodeGroups` shape but the field names have not been confirmed by an
- * actual call. Run `npm run stratz:check` once you have a token: it prints the
- * raw response so any mismatch is obvious, and every field here is read
- * defensively so a wrong name degrades to a missing value rather than a crash.
- *
- * Two known hazards beyond field names:
- *   - api.stratz.com sits behind Cloudflare, which may reject server-side calls
- *     outright regardless of the token.
- *   - STRATZ asks for a descriptive User-Agent; requests without one get
- *     throttled harder.
- */
-import { deriveTag } from '../types.js';
-import { shortenStage } from './json.js';
-import type { BracketRow, Schedule, ScheduleSource, UpcomingMatch } from './types.js';
+import { deriveTag } from '../types';
+import { shortenStage } from './json';
+import type { BracketRow, Schedule, ScheduleSource, UpcomingMatch } from './types';
 
 const ENDPOINT = 'https://api.stratz.com/graphql';
 
-/**
- * Kept as one editable constant on purpose: if a field name turns out to be
- * wrong, this is the only place that needs touching.
- */
 export const LEAGUE_QUERY = `
 query BusyBarSchedule($leagueId: Int!) {
   league(id: $leagueId) {
@@ -75,15 +55,15 @@ export class StratzScheduleSource implements ScheduleSource {
 
     const matches = nodes
       .filter((node) => !node.isCompleted)
-      .sort((a, b) => (a.startsAtMs ?? Infinity) - (b.startsAtMs ?? Infinity));
-
+      .sort((a, b) => (a.startsAtMs ?? Infinity) - (b.startsAtMs ?? Infinity))
+      .map((node) => node.match);
     return {
-      next: matches[0]?.match ?? null,
+      next: matches[0] ?? null,
+      upcoming: matches,
       bracket: nodes.map((node) => node.row),
     };
   }
 
-  /** Also used by `stratz:check`, which prints whatever comes back. */
   async request(): Promise<unknown> {
     const response = await this.fetchImpl(ENDPOINT, {
       method: 'POST',
@@ -91,7 +71,7 @@ export class StratzScheduleSource implements ScheduleSource {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.options.token}`,
-        // STRATZ throttles anonymous-looking clients harder.
+
         'User-Agent': 'busybar-dota (https://busy.app pet project)',
       },
       body: JSON.stringify({
@@ -115,6 +95,7 @@ export class StratzScheduleSource implements ScheduleSource {
       const message = isRecord(first) ? str(first['message']) : '';
       throw new Error(`STRATZ GraphQL error: ${message || 'unspecified'}`);
     }
+
     return body;
   }
 }
@@ -141,10 +122,12 @@ function readNodes(body: unknown): ParsedNode[] {
     if (!Array.isArray(nodes)) {
       continue;
     }
+
     for (const node of nodes.filter(isRecord)) {
       parsed.push(readNode(node, stage));
     }
   }
+
   return parsed;
 }
 
@@ -188,22 +171,25 @@ function teamName(raw: unknown, fallback: string): { name: string; tag: string }
     return { name: fallback, tag: fallback };
   }
   const name = str(raw['name']) || fallback;
+
   return { name, tag: str(raw['tag']) || deriveTag(name, fallback) };
 }
 
-/** STRATZ encodes series length as 0 = bo1, 1 = bo3, 2 = bo5. */
-export function seriesTypeToBestOf(seriesType: number | null): number {
+export function seriesTypeToBestOf(seriesType: number | null) {
   if (seriesType === 0) {
     return 1;
   }
+
   if (seriesType === 1) {
     return 3;
   }
+
   return seriesType === 2 ? 5 : 0;
 }
 
 function secondsToMs(value: unknown): number | null {
   const seconds = numOrNull(value);
+
   return seconds === null || seconds <= 0 ? null : seconds * 1000;
 }
 
@@ -211,7 +197,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function str(value: unknown): string {
+function str(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -220,5 +206,6 @@ function numOrNull(value: unknown): number | null {
     return null;
   }
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : null;
 }

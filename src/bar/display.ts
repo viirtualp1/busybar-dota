@@ -1,15 +1,11 @@
 import { BusyBar, type DisplayDrawParams } from '@busy-app/busy-lib';
-import type { MatchEvent, MatchEventKind } from '../domain/events.js';
-import type { DotaFrame } from '../view/frame.js';
-import { backElements, frontElements } from './elements.js';
-import { isClientError, isLowPriority, toBarError } from './errors.js';
+import type { MatchEvent, MatchEventKind } from '../domain/events';
+import type { DotaFrame } from '../view/frame';
+import { backElements, frontElements } from './elements';
+import { isClientError, isLowPriority, toBarError } from './errors';
 
 export const APP_NAME = 'dota';
 
-/**
- * Stock sounds, with fallbacks — firmware versions disagree about extensions,
- * and a missing file should cost one failed call, not one per event forever.
- */
 const SOUNDS: Partial<Record<MatchEventKind, readonly string[]>> = {
   tower: [
     'shared/calendar_event_starts.snd',
@@ -60,22 +56,21 @@ export class BarDisplay {
     private readonly priority: number,
   ) {}
 
-  async ping(): Promise<void> {
+  async ping() {
     await this.bar.SystemStatusGet();
   }
 
-  /** After a reboot or a dropped connection the screen may still hold old elements. */
-  markStale(): void {
+  markStale() {
     this.cleared = false;
     this.lastKey = '';
   }
 
-  stop(): void {
+  stop() {
     this.stopped = true;
     this.queued = null;
   }
 
-  async push(frame: DotaFrame): Promise<void> {
+  async push(frame: DotaFrame) {
     if (this.stopped) {
       return;
     }
@@ -106,8 +101,7 @@ export class BarDisplay {
     }
   }
 
-  /** Silent for anything the event itself marks silent — kills, above all. */
-  async playEvent(event: MatchEvent): Promise<void> {
+  async playEvent(event: MatchEvent) {
     if (!event.sound) {
       return;
     }
@@ -115,16 +109,17 @@ export class BarDisplay {
     if (!names) {
       return;
     }
+
     for (const name of names) {
       if (this.failedSounds.has(name)) {
         continue;
       }
+
       try {
         await this.bar.AudioPlay({ application_name: APP_NAME, stock_path: name });
         return;
       } catch (error) {
-        // 4xx means this file is not there; anything else is transient and the
-        // next event can try again.
+        // 4xx means this file is not there; anything else is transient.
         if (!isClientError(error)) {
           return;
         }
@@ -133,14 +128,14 @@ export class BarDisplay {
     }
   }
 
-  async clear(): Promise<void> {
+  async clear() {
     this.stop();
     this.lastKey = '';
     this.cleared = false;
     await this.bar.DisplayClear({ application_name: APP_NAME });
   }
 
-  private async draw(frame: DotaFrame): Promise<void> {
+  private async draw(frame: DotaFrame) {
     if (!this.cleared) {
       await this.bar.DisplayClear({ application_name: APP_NAME });
       this.cleared = true;
@@ -160,6 +155,7 @@ export class BarDisplay {
       if (!isLowPriority(error)) {
         throw error;
       }
+
       if (!this.warnedPriority) {
         console.warn(
           'BUSY Bar is showing a higher-priority app (BUSY/CUSTOM session). Waiting…',
@@ -169,8 +165,8 @@ export class BarDisplay {
     }
   }
 
-  /** The generated DisplayDraw helper drops `led_notification_color`, so post directly. */
-  private async drawRaw(payload: DisplayDrawParams): Promise<void> {
+  // The generated DisplayDraw helper drops `led_notification_color`, so post directly.
+  private async drawRaw(payload: DisplayDrawParams) {
     const client = this.bar.apiClient;
     const { error } = await client.execute((signal) =>
       client.POST('/display/draw', {

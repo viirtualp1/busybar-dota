@@ -1,16 +1,6 @@
 #!/usr/bin/env node
-/**
- * Validates the STRATZ query against a live token.
- *
- * The query in `schedule/stratz.ts` was written from STRATZ's documented schema
- * but never run — token signup was broken at the time. This prints the raw
- * response plus what the parser made of it, so the moment a token works you can
- * see exactly which field names are wrong.
- *
- *   STRATZ_TOKEN=... LEAGUE_ID=... npm run stratz:check
- */
-import { loadConfig, loadEnvFile } from './config.js';
-import { LEAGUE_QUERY, StratzScheduleSource } from './dota/schedule/index.js';
+import { loadConfig, loadEnvFile } from './config';
+import { LEAGUE_QUERY, StratzScheduleSource } from './dota/schedule/index';
 
 loadEnvFile();
 const { config } = loadConfig();
@@ -19,6 +9,7 @@ if (!config.stratzToken) {
   console.error('STRATZ_TOKEN is not set. Put it in .env or pass it inline.');
   process.exit(1);
 }
+
 if (!config.leagueId) {
   console.error('LEAGUE_ID is not set — the query needs a league to ask about.');
   process.exit(1);

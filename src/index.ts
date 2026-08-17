@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-import { App } from './app.js';
-import { BarDisplay, createBusyBar } from './bar/display.js';
-import { errorMessage } from './bar/errors.js';
-import { loadConfig, loadEnvFile } from './config.js';
-import { HeroCatalog } from './dota/heroes.js';
-import { DemoResultLookup, MatchResultLookup } from './dota/match-result.js';
-import { createScheduleSource } from './dota/schedule/index.js';
-import { createSource } from './dota/source.js';
+import { App } from './app';
+import { BarDisplay, createBusyBar } from './bar/display';
+import { errorMessage } from './bar/errors';
+import { loadConfig, loadEnvFile } from './config';
+import { HeroCatalog } from './dota/heroes';
+import { DemoResultLookup, MatchResultLookup } from './dota/match-result';
+import { createScheduleSource } from './dota/schedule/index';
+import { createSource } from './dota/source';
 
 loadEnvFile();
 const { config, warnings } = loadConfig();
@@ -21,8 +21,6 @@ const source = createSource(
   config.demo,
 );
 
-// No keyless API publishes a pro schedule — Valve's GetScheduledLeagueGames is
-// gone — so the between-games view is opt-in rather than silently absent.
 const schedule = createScheduleSource({
   kind: config.scheduleKind,
   file: config.scheduleFile,
@@ -37,6 +35,7 @@ console.log(`Schedule: ${schedule.label}`);
 if (config.leagueId) {
   console.log(`League filter: ${config.leagueId}`);
 }
+
 for (const warning of warnings) {
   console.warn(warning);
 }
@@ -50,7 +49,7 @@ const app = new App({
   config,
   source,
   schedule,
-  // The synthetic match has no id to resolve, so the demo decides its own winner.
+
   results: config.demo
     ? new DemoResultLookup()
     : new MatchResultLookup(config.requestTimeoutMs),
@@ -59,7 +58,7 @@ const app = new App({
 });
 
 let exiting = false;
-async function shutdown(code: number): Promise<void> {
+async function shutdown(code: number) {
   if (exiting) {
     return;
   }

@@ -8,8 +8,8 @@ import {
   scrollAt,
   STEP_MS,
   tickerLineLooping,
-} from '../src/view/ticker-text.js';
-import { DEFAULTS } from '../src/config.js';
+} from '../src/view/ticker-text';
+import { DEFAULTS } from '../src/config';
 
 const LINE = 17;
 
@@ -22,12 +22,11 @@ test('a line that fits is one page and never moves', () => {
 test('pages break between words, never mid-word', () => {
   const pages = paginate('FLC lost mid melee and mid ranged barracks', LINE);
   assert.ok(pages.every((page) => page.length <= LINE));
-  // Every word survives, in order, with nothing invented.
+
   assert.equal(pages.join(' '), 'FLC lost mid melee and mid ranged barracks');
 });
 
 test('a number is never orphaned from the word before it', () => {
-  // `mid tier` then `2 tower` reads worse than a shorter first page.
   const pages = paginate('FLC lost mid tier 2 tower', LINE);
   assert.ok(
     pages.every((page) => !/^\d/.test(page)),
@@ -50,10 +49,6 @@ test('pages advance on a fixed beat and then repeat', () => {
   assert.equal(pageAt(text, LINE, PAGE_MS * pages.length), pages[0]);
 });
 
-/**
- * The stutter that started all this: a step that is not a whole number of
- * redraws lands on alternating frames.
- */
 test('the scroll step is a whole number of redraws', () => {
   assert.equal(STEP_MS % DEFAULTS.frameMs, 0);
   assert.ok(STEP_MS / DEFAULTS.frameMs >= 2, 'at least two frames per glyph');

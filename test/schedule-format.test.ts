@@ -4,14 +4,19 @@ import {
   buildSchedule,
   parseScheduleFile,
   ScheduleFileError,
-} from '../src/dota/schedule/json.js';
-import { isKnownTimeZone, zonedToEpochMs } from '../src/dota/schedule/zoned.js';
+} from '../src/dota/schedule/json';
+import { isKnownTimeZone, zonedToEpochMs } from '../src/dota/schedule/zoned';
 
 const DAY = JSON.stringify({
   timezone: 'Asia/Shanghai',
   date: '2026-08-16',
   matches: [
-    { teams: 'Team Spirit vs Tundra', time: '10:00', stage: 'Upper Bracket R1', score: '2-0' },
+    {
+      teams: 'Team Spirit vs Tundra',
+      time: '10:00',
+      stage: 'Upper Bracket R1',
+      score: '2-0',
+    },
     { teams: 'Team Spirit vs Falcons', time: '21:30', stage: 'Upper Bracket R2', bo: 3 },
     { teams: 'Tundra vs Liquid', time: '23:30', stage: 'Lower Bracket R2', bo: 3 },
   ],
@@ -24,7 +29,7 @@ test('a wall-clock time in a zone lands on the right instant', () => {
     zonedToEpochMs('2026-08-16', '10:00', 'Asia/Shanghai'),
     Date.parse('2026-08-16T10:00:00+08:00'),
   );
-  // A zone that observes DST, on either side of the switch.
+
   assert.equal(
     zonedToEpochMs('2026-01-15', '12:00', 'Europe/Berlin'),
     Date.parse('2026-01-15T12:00:00+01:00'),
@@ -77,9 +82,11 @@ test('"A vs B" splits into two teams with derived tags', () => {
 
 test('a match with a score drops out of the countdown', () => {
   const schedule = buildSchedule(parseScheduleFile(DAY), BEFORE);
-  // The 10:00 game is played, so the 21:30 one is next even though both are
-  // "in the past or present" by different measures.
+
   assert.equal(schedule.next?.teamB, 'Falcons');
+  assert.equal(schedule.upcoming.length, 2);
+  assert.equal(schedule.upcoming[0]?.teamB, 'Falcons');
+  assert.equal(schedule.upcoming[1]?.teamB, 'Liquid');
 });
 
 test('the bracket is derived from the matches, with results filled in', () => {
@@ -98,7 +105,10 @@ test('an explicit bracket still overrides the derived one', () => {
     matches: [{ teams: 'A vs B', time: '10:00' }],
     bracket: [{ label: 'X', text: 'hand written' }],
   });
-  const schedule = buildSchedule(parseScheduleFile(raw), Date.parse('2026-08-16T09:00:00Z'));
+  const schedule = buildSchedule(
+    parseScheduleFile(raw),
+    Date.parse('2026-08-16T09:00:00Z'),
+  );
   assert.equal(schedule.bracket.length, 1);
   assert.equal(schedule.bracket[0]?.text, 'hand written');
 });
@@ -113,16 +123,17 @@ test('scores are normalised, and nonsense is refused', () => {
   assert.equal(schedule.bracket[0]?.text, 'A 2-1 B');
   assert.throws(
     () =>
-      parseScheduleFile(
-        JSON.stringify({ matches: [{ teams: 'A vs B', score: 'won' }] }),
-      ),
+      parseScheduleFile(JSON.stringify({ matches: [{ teams: 'A vs B', score: 'won' }] })),
     /score should look like/,
   );
 });
 
 test('a time with no date anywhere says so instead of guessing today', () => {
   assert.throws(
-    () => parseScheduleFile(JSON.stringify({ matches: [{ teams: 'A vs B', time: '10:00' }] })),
+    () =>
+      parseScheduleFile(
+        JSON.stringify({ matches: [{ teams: 'A vs B', time: '10:00' }] }),
+      ),
     /needs a date/,
   );
 });
@@ -141,7 +152,10 @@ test('the longhand form keeps working', () => {
     ],
   });
   const parsed = parseScheduleFile(raw);
-  assert.equal(parsed.entries[0]?.match.startsAtMs, Date.parse('2026-08-16T10:00:00+08:00'));
+  assert.equal(
+    parsed.entries[0]?.match.startsAtMs,
+    Date.parse('2026-08-16T10:00:00+08:00'),
+  );
   assert.equal(parsed.entries[0]?.match.bestOf, 5);
 });
 

@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { FRONT, LEAD_CAP, MIN_FILL, radiantFillWidth } from '../src/bar/layout.js';
+import { FRONT, LEAD_CAP, MIN_FILL, radiantFillWidth } from '../src/bar/layout';
 import {
   deriveTag,
   emptyTeam,
   idleSnapshot,
   type MatchSnapshot,
-} from '../src/dota/types.js';
-import { buildFrame } from '../src/view/frame.js';
-import { formatClock, formatGold } from '../src/view/format.js';
+} from '../src/dota/types';
+import { buildFrame } from '../src/view/frame';
+import { formatClock, formatGold } from '../src/view/format';
 
-import { frameOptions, heroes, pairOf } from './helpers.js';
+import { frameOptions, heroes, pairOf } from './helpers';
 
 const options = frameOptions({ maxRows: 5 });
 

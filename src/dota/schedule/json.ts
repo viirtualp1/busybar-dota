@@ -1,32 +1,8 @@
-/**
- * A hand-maintained schedule file.
- *
- * The working default, because no free API publishes a pro schedule right now:
- * Liquipedia moved brackets off their basic tier and STRATZ's token signup is
- * broken. So the format is optimised for typing it in fast at 2am:
- *
- *   - `timezone` and `date` are set once for the file, so each match is `10:00`
- *     and you never convert a tournament time into your own.
- *   - `teams` is one field, `"Spirit vs Falcons"`, not two.
- *   - `bracket` is derived from the matches unless you override it, so a day's
- *     schedule is one list rather than two that must agree.
- *   - Adding `"score": "2-0"` marks a match played: it drops out of the
- *     countdown and shows its result in the bracket. One edit per finished game.
- *
- * The file is re-read whenever it changes, so it can be edited while the app
- * runs — which is the whole point of maintaining it by hand.
- */
 import { readFile, stat } from 'node:fs/promises';
-import { deriveTag } from '../types.js';
-import type { BracketRow, Schedule, ScheduleSource, UpcomingMatch } from './types.js';
-import { isKnownTimeZone, zonedToEpochMs } from './zoned.js';
+import { deriveTag } from '../types';
+import type { BracketRow, Schedule, ScheduleSource, UpcomingMatch } from './types';
+import { isKnownTimeZone, zonedToEpochMs } from './zoned';
 
-/**
- * How long after its scheduled start a match stays "next".
- *
- * Broadcasts run late constantly. Dropping a match the instant its clock passes
- * would blank the display exactly when the game is about to start.
- */
 const LATE_GRACE_MS = 30 * 60 * 1000;
 
 const DEFAULT_TIMEZONE = 'UTC';
@@ -40,15 +16,14 @@ export class ScheduleFileError extends Error {
 
 export type ScheduleEntry = {
   match: UpcomingMatch;
-  /** `2-0` once played, empty while pending. */
+
   score: string;
   finished: boolean;
 };
 
-/** The file's contents, before "which match is next" is decided. */
 export type ParsedSchedule = {
   entries: ScheduleEntry[];
-  /** `null` means "derive it from the matches". */
+
   bracket: BracketRow[] | null;
 };
 
@@ -69,12 +44,10 @@ export class JsonScheduleSource implements ScheduleSource {
     if (!(await this.reloadIfChanged())) {
       return null;
     }
-    // Built fresh every poll rather than cached with the file: the same file
-    // means something different once a match's start time passes.
+
     return this.cache ? buildSchedule(this.cache, this.now()) : null;
   }
 
-  /** False when the file is absent — a missing schedule is not an error. */
   private async reloadIfChanged(): Promise<boolean> {
     let stats;
     try {
@@ -96,11 +69,11 @@ export class JsonScheduleSource implements ScheduleSource {
     this.cache = parseScheduleFile(raw);
     this.cachedAtMs = stats.mtimeMs;
     this.cachedSize = stats.size;
+
     return true;
   }
 }
 
-/** Throws `ScheduleFileError` on bad input, with the path to the offending field. */
 export function parseScheduleFile(raw: string): ParsedSchedule {
   let body: unknown;
   try {
@@ -110,6 +83,7 @@ export function parseScheduleFile(raw: string): ParsedSchedule {
       `not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+
   if (!isRecord(body)) {
     throw new ScheduleFileError('expected an object at the top level');
   }
@@ -128,13 +102,16 @@ export function parseScheduleFile(raw: string): ParsedSchedule {
 
   const entries = readMatches(body['matches'], { timeZone, defaultDate });
   const bracket = body['bracket'] === undefined ? null : readBracket(body['bracket']);
+
   return { entries, bracket };
 }
 
 export function buildSchedule(parsed: ParsedSchedule, nowMs: number): Schedule {
-  const next = pickNext(parsed.entries, nowMs);
+  const upcoming = pickUpcoming(parsed.entries, nowMs);
+  const next = upcoming[0] ?? null;
   const bracket = parsed.bracket ?? deriveBracket(parsed.entries);
-  return { next, bracket: markNext(bracket, next) };
+
+  return { next, upcoming, bracket: markNext(bracket, next) };
 }
 
 type Defaults = { timeZone: string; defaultDate: string };
@@ -143,9 +120,11 @@ function readMatches(raw: unknown, defaults: Defaults): ScheduleEntry[] {
   if (raw === undefined) {
     return [];
   }
+
   if (!Array.isArray(raw)) {
     throw new ScheduleFileError('`matches` must be an array');
   }
+
   return raw.map((entry, index) => readMatch(entry, index, defaults));
 }
 
@@ -175,7 +154,6 @@ function readMatch(raw: unknown, index: number, defaults: Defaults): ScheduleEnt
   };
 }
 
-/** Accepts `"Spirit vs Falcons"` or the longhand `teamA` / `teamB` pair. */
 function readTeams(raw: Record<string, unknown>, where: string): [string, string] {
   const combined = str(raw['teams']);
   if (combined) {
@@ -193,13 +171,10 @@ function readTeams(raw: Record<string, unknown>, where: string): [string, string
   if (!teamA || !teamB) {
     throw new ScheduleFileError(`${where} needs "teams", or both teamA and teamB`);
   }
+
   return [teamA, teamB];
 }
 
-/**
- * `time` plus the file's date and zone is the fast path; `startsAt` with a full
- * ISO string still works for one-off matches on another day.
- */
 function readStart(
   raw: Record<string, unknown>,
   where: string,
@@ -227,9 +202,11 @@ function readStart(
   if (startsAt === undefined || startsAt === null || startsAt === '') {
     return null;
   }
+
   if (typeof startsAt === 'number' && Number.isFinite(startsAt)) {
     return startsAt;
   }
+
   if (typeof startsAt !== 'string') {
     throw new ScheduleFileError(`${where}.startsAt must be an ISO date string`);
   }
@@ -240,10 +217,11 @@ function readStart(
         '(use an ISO string with an offset, e.g. 2026-08-16T10:00:00+08:00)',
     );
   }
+
   return parsed;
 }
 
-function normaliseScore(raw: unknown, where: string): string {
+function normaliseScore(raw: unknown, where: string) {
   if (raw === undefined || raw === null || raw === '') {
     return '';
   }
@@ -251,6 +229,7 @@ function normaliseScore(raw: unknown, where: string): string {
   if (!/^\d+\s*[-:]\s*\d+$/.test(score)) {
     throw new ScheduleFileError(`${where}.score should look like "2-0", got "${score}"`);
   }
+
   return score.replace(/\s*[-:]\s*/, '-');
 }
 
@@ -258,10 +237,12 @@ function readBracket(raw: unknown): BracketRow[] {
   if (!Array.isArray(raw)) {
     throw new ScheduleFileError('`bracket` must be an array');
   }
+
   return raw.map((entry, index) => {
     if (!isRecord(entry)) {
       throw new ScheduleFileError(`bracket[${index}] must be an object`);
     }
+
     return {
       label: str(entry['label']),
       text: str(entry['text']),
@@ -270,7 +251,6 @@ function readBracket(raw: unknown): BracketRow[] {
   });
 }
 
-/** One list in, two views out — the bracket is just the matches, rendered. */
 function deriveBracket(entries: ScheduleEntry[]): BracketRow[] {
   return entries.map((entry) => ({
     label: entry.match.stageShort || entry.match.stage,
@@ -281,29 +261,19 @@ function deriveBracket(entries: ScheduleEntry[]): BracketRow[] {
   }));
 }
 
-function pickNext(entries: ScheduleEntry[], nowMs: number): UpcomingMatch | null {
+function pickUpcoming(entries: ScheduleEntry[], nowMs: number): UpcomingMatch[] {
   const pending = entries.filter((entry) => !entry.finished);
-  const scheduled = pending
+  const timed = pending
     .filter((entry) => entry.match.startsAtMs !== null)
-    .sort((a, b) => (a.match.startsAtMs ?? 0) - (b.match.startsAtMs ?? 0));
-
-  const upcoming = scheduled.find(
-    (entry) => (entry.match.startsAtMs ?? 0) + LATE_GRACE_MS > nowMs,
-  );
-  if (upcoming) {
-    return upcoming.match;
-  }
-  // Every timed entry is in the past: fall back to a TBD match if one was
-  // listed, so "next up, time unknown" still reaches the display.
-  return pending.find((entry) => entry.match.startsAtMs === null)?.match ?? null;
+    .filter((entry) => (entry.match.startsAtMs ?? 0) + LATE_GRACE_MS > nowMs)
+    .sort((a, b) => (a.match.startsAtMs ?? 0) - (b.match.startsAtMs ?? 0))
+    .map((entry) => entry.match);
+  const tbd = pending
+    .filter((entry) => entry.match.startsAtMs === null)
+    .map((entry) => entry.match);
+  return [...timed, ...tbd];
 }
 
-/**
- * Highlights the bracket row for the upcoming tie.
- *
- * An explicit `"next": true` always wins. Otherwise the row naming both teams is
- * used, which saves editing two places every time a match ends.
- */
 function markNext(bracket: BracketRow[], next: UpcomingMatch | null): BracketRow[] {
   if (bracket.some((row) => row.next) || !next) {
     return bracket;
@@ -320,31 +290,31 @@ function markNext(bracket: BracketRow[], next: UpcomingMatch | null): BracketRow
       marked = true;
       return { ...row, next: true };
     }
+
     return row;
   });
 }
 
-/** Bracket text usually shortens names, so match on any word of the team name. */
-function mentions(text: string, team: string): boolean {
+function mentions(text: string, team: string) {
   if (text.includes(team)) {
     return true;
   }
+
   return team.split(/\s+/).some((word) => word.length >= 4 && text.includes(word));
 }
 
-/** `Upper Bracket R2` → `UB2`, so the stage fits the 26px slot on the front. */
-export function shortenStage(stage: string): string {
+export function shortenStage(stage: string) {
   if (!stage) {
     return '';
   }
   const digits = /\d+/.exec(stage)?.[0] ?? '';
   const initials = stage
     .split(/\s+/)
-    // Words carrying the round number are dropped, or `Upper Bracket R2` picks
-    // up the R and comes out as `UBR2`.
+    // Words carrying the round number are dropped, or `Upper Bracket R2` becomes `UBR2`.
     .filter((word) => /^[A-Za-z]/.test(word) && !/\d/.test(word))
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('');
+
   return `${initials}${digits}`.slice(0, 6);
 }
 
@@ -352,11 +322,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function str(value: unknown): string {
+function str(value: unknown) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function numOr(value: unknown, fallback: number): number {
+function numOr(value: unknown, fallback: number) {
   const parsed = Number(value);
+
   return Number.isFinite(parsed) ? parsed : fallback;
 }

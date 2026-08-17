@@ -1,21 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { backElements, frontElements } from '../src/bar/elements.js';
-import { FONT_WIDTH, FRONT } from '../src/bar/layout.js';
-import { detectEvent, EVENT_TEXT, stateOf } from '../src/domain/events.js';
-import { resultText, type SeriesBreak } from '../src/domain/series.js';
-import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types.js';
-import { buildFrame } from '../src/view/frame.js';
-import { frameOptions, schedule } from './helpers.js';
+import { backElements, frontElements } from '../src/bar/elements';
+import { FONT_WIDTH, FRONT } from '../src/bar/layout';
+import { detectEvent, EVENT_TEXT, stateOf } from '../src/domain/events';
+import { resultText, type SeriesBreak } from '../src/domain/series';
+import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types';
+import { COLORS } from '../src/view/colors';
+import { buildFrame } from '../src/view/frame';
+import { frameOptions, schedule } from './helpers';
 
 const ALL_TOWERS = 0b111_1111_1111;
 const ALL_BARRACKS = 0b11_1111;
 
-/**
- * The Bar draws a placeholder box for glyphs its font lacks, so an em dash
- * arrives as a stray rectangle sitting in the middle of a sentence.
- */
-function assertAscii(text: string, where: string): void {
+function assertAscii(text: string, where: string) {
   const stray = [...text].filter((character) => character.charCodeAt(0) > 126);
   assert.deepEqual(stray, [], `${where} has non-ASCII: ${JSON.stringify(text)}`);
 }
@@ -82,16 +79,22 @@ test('every event sentence is plain ASCII', () => {
     assert.ok(event, `${name} produced no event`);
     assertAscii(event.text, name);
   }
-  assertAscii(EVENT_TEXT.matchStart('Team Spirit', 'Falcons'), 'match-start');
+  assertAscii(EVENT_TEXT.matchStart(), 'match-start');
   assertAscii(resultText(seriesBreak()), 'result');
-  assertAscii(resultText(seriesBreak({ pendingResult: true, lastWinner: null })), 'pending');
+  assertAscii(
+    resultText(seriesBreak({ pendingResult: true, lastWinner: null })),
+    'pending',
+  );
 });
 
 test('every line drawn on either display is plain ASCII', () => {
   const frames = [
     buildFrame(snapshot(), frameOptions()),
     buildFrame(idleSnapshot(), frameOptions({ schedule: schedule() })),
-    buildFrame(idleSnapshot(), frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 0 })),
+    buildFrame(
+      idleSnapshot(),
+      frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 0 }),
+    ),
   ];
   for (const frame of frames) {
     for (const element of [...frontElements(frame), ...backElements(frame)]) {
@@ -113,7 +116,6 @@ test('the gold lead shows bottom-right, coloured by side', () => {
 });
 
 test('the lead never grows wide enough to reach the centred series score', () => {
-  // Right-aligned at the edge; the series score sits centred at 30..42px.
   const huge = buildFrame(snapshot({ netWorthLead: 99_900 }), frameOptions());
   const widthPx = huge.leadText.length * FONT_WIDTH.tiny;
   assert.ok(
@@ -136,7 +138,7 @@ test('the result screen boxes the winner and drops the event line', () => {
   assert.equal(frame.mode, 'result');
   assert.deepEqual(frame.finalTags, { radiant: 'TS', dire: 'FLC', winner: 'radiant' });
   assert.equal(frame.seriesText, '1-0');
-  // No ticker on the result screen: the names and the score are the message.
+
   assert.equal(frame.tickerText, '');
 
   const boxes = frontElements(frame).filter((element) =>
@@ -144,11 +146,12 @@ test('the result screen boxes the winner and drops the event line', () => {
   );
   assert.equal(boxes.length, 2, 'both slots are always emitted, so none can linger');
   const filled = boxes.filter(
-    (element) =>
-      element.type === 'rectangle' && element.fill_colors?.[0] !== '#00000000',
+    (element) => element.type === 'rectangle' && element.fill_colors?.[0] !== '#00000000',
   );
   assert.equal(filled.length, 1, 'exactly one team is marked');
   assert.equal(filled[0]?.id, 'final-box-radiant');
+  assert.equal(filled[0]?.type, 'rectangle');
+  assert.equal(filled[0].fill_colors?.[0], COLORS.radiant);
 });
 
 test('the result screen still shows the series score beside the tags', () => {
@@ -156,7 +159,7 @@ test('the result screen still shows the series score beside the tags', () => {
     idleSnapshot(),
     frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 0 }),
   );
-  // The bottom-row text must not hide it the way the live ticker hides the clock.
+
   const series = frontElements(frame).find((element) => element.id === 'series');
   assert.ok(series && series.type === 'text');
   assert.equal(series.text, '1-0');
@@ -186,17 +189,17 @@ test('waiting screens are static: tags in the corners, series score between', ()
     idleSnapshot(),
     frameOptions({ schedule: schedule(), nowEpochMs: 0 }),
   );
-  // The matchup sits under the timer, not as tags in the corners.
+
   assert.equal(upcoming.radiantTag, '');
   assert.equal(upcoming.direTag, '');
   assert.match(upcoming.tickerText, /VS/);
 
   const between = buildFrame(
     idleSnapshot(),
-    // Past the two-minute result screen, so this is the countdown view.
+
     frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 5 * 60 * 1000 }),
   );
   assert.equal(between.mode, 'series-break');
-  // Past game one, so the score stands in for `VS`.
+
   assert.match(between.tickerText, /1-0/);
 });

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { ScheduleKind } from './dota/schedule/index.js';
-import type { TickerStyle } from './view/ticker-text.js';
+import type { ScheduleKind } from './dota/schedule/index';
+import type { TickerStyle } from './view/ticker-text';
 
 export type Config = {
   busyAddr: string;
@@ -35,22 +35,10 @@ export const DEFAULTS = {
   usbAddr: '10.0.4.20',
   cloudAddr: 'https://api.busy.app',
   drawPriority: 40,
-  /**
-   * Both upstreams refresh on the order of seconds and OpenDota allows 60
-   * req/min, so a faster poll would only burn quota for the same numbers.
-   */
   pollMs: 5000,
   frameMs: 200,
   requestTimeoutMs: 10_000,
-  /** A teamfight can surface several kills in one poll; one chirp is plenty. */
   killSoundGapMs: 4000,
-  /**
-   * Glyphs of tiny text assumed to fit across the 72px front display.
-   *
-   * Deliberately conservative: the device fonts are proportional and this code
-   * cannot measure them, so it budgets 4px a glyph. If lines page that plainly
-   * had room to sit still, raise this until they stop.
-   */
   tickerChars: 17,
 } as const;
 
@@ -64,20 +52,19 @@ const LIMITS = {
   tickerChars: { min: 8, max: 40 },
 } as const;
 
-export function loadEnvFile(cwd = process.cwd()): void {
+export function loadEnvFile(cwd = process.cwd()) {
   const path = resolve(cwd, '.env');
   if (!existsSync(path)) {
     return;
   }
-  // Real environment variables win over the file, same as `node --env-file`.
   process.loadEnvFile(path);
 }
 
-export function isCloudAddr(addr: string): boolean {
+export function isCloudAddr(addr: string) {
   return /api(?:\.(?:dev|test|stage))?\.busy\.app/i.test(addr);
 }
 
-export function isUsbAddr(addr: string): boolean {
+export function isUsbAddr(addr: string) {
   try {
     const url = /^https?:\/\//i.test(addr) ? new URL(addr) : new URL(`http://${addr}`);
     return url.hostname === DEFAULTS.usbAddr;
@@ -91,13 +78,13 @@ export function loadConfig(
   argv: readonly string[] = process.argv.slice(2),
 ): LoadedConfig {
   const warnings: string[] = [];
-  const read = (name: string): string => env[name]?.trim() ?? '';
+  const read = (name: string) => env[name]?.trim() ?? '';
 
   const number = (
     name: string,
     fallback: number,
     limits: { min: number; max: number },
-  ): number => {
+  ) => {
     const raw = read(name);
     if (!raw) {
       return fallback;
@@ -125,14 +112,17 @@ export function loadConfig(
   if (cloud && httpPassword) {
     warnings.push('BUSY_HTTP_PASSWORD is ignored on cloud, only BUSY_TOKEN is used');
   }
+
   if (!cloud && token) {
     warnings.push(
       `BUSY_TOKEN is ignored for ${busyAddr}, that token only works on cloud`,
     );
   }
+
   if (usb && httpPassword) {
     warnings.push('BUSY_HTTP_PASSWORD is ignored over USB, no auth is required there');
   }
+
   if (!cloud && !usb && !httpPassword) {
     warnings.push(
       'Wi-Fi needs BUSY_HTTP_PASSWORD (Bar web UI → Network → HTTP API access)',
@@ -177,8 +167,7 @@ export function loadConfig(
       ),
       demo,
       sounds: read('SOUNDS') !== '0',
-      // Paging by default: at five redraws a second a scrolling line steps a
-      // whole glyph at a time and reads as a stutter.
+
       tickerStyle: read('TICKER_STYLE').toLowerCase() === 'scroll' ? 'scroll' : 'page',
       tickerChars: number('TICKER_CHARS', DEFAULTS.tickerChars, LIMITS.tickerChars),
       killSoundGapMs: number(
@@ -193,15 +182,6 @@ export function loadConfig(
   };
 }
 
-/**
- * Picks the schedule source.
- *
- * Defaults to the hand-maintained JSON file when one exists, because that is
- * the only option that works without credentials today — Liquipedia moved
- * brackets off its free tier and STRATZ token signup is broken. STRATZ has to
- * be asked for explicitly, and refuses to start without a token rather than
- * failing quietly on every poll.
- */
 function readScheduleKind(
   raw: string,
   context: { demo: boolean; scheduleFile: string; stratzToken: string },
@@ -222,6 +202,7 @@ function readScheduleKind(
     );
     return 'stratz';
   }
+
   if (requested === 'json') {
     if (!existsSync(context.scheduleFile)) {
       warnings.push(
@@ -231,12 +212,15 @@ function readScheduleKind(
     }
     return 'json';
   }
+
   if (requested === 'demo') {
     return 'demo';
   }
+
   if (requested === 'none') {
     return 'none';
   }
+
   if (requested) {
     warnings.push(`SCHEDULE_SOURCE=${requested} is unknown, using auto-detection`);
   }
@@ -244,5 +228,6 @@ function readScheduleKind(
   if (context.demo) {
     return 'demo';
   }
+
   return existsSync(context.scheduleFile) ? 'json' : 'none';
 }

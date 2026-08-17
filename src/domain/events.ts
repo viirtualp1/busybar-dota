@@ -1,62 +1,29 @@
-import type { MatchSnapshot } from '../dota/types.js';
+import type { MatchSnapshot } from '../dota/types';
 
 export type Side = 'radiant' | 'dire';
 
 export type MatchEventKind =
-  | 'match-start'
-  | 'match-end'
-  | 'kill'
-  | 'tower'
-  | 'barracks'
-  | 'roshan';
+  'match-start' | 'match-end' | 'kill' | 'tower' | 'barracks' | 'roshan';
 
 export type MatchEvent = {
   kind: MatchEventKind;
-  /** Which team it happened *to* for buildings, and *for* on kills. */
   side: Side | null;
-  /**
-   * One full sentence, written out. The front display scrolls it when it does
-   * not fit rather than abbreviating — `FAL MID RAX` saved pixels and lost the
-   * meaning.
-   */
   text: string;
-  /**
-   * Only one event is shown per poll, so ties are broken by how rare and
-   * consequential the thing is: the game ending, then racks (they usually decide
-   * it), then Roshan, then a tower. A kill loses to everything — there are
-   * dozens of them.
-   */
   priority: number;
-  /** Kills are silent on purpose — one chirp per kill is a machine gun. */
   sound: boolean;
 };
 
-
-/**
- * Every word that reaches the display, in one place.
- *
- * This is the file to edit to reword an event — nothing below builds a sentence
- * of its own. Keep it **plain ASCII**: the Bar draws a placeholder box for
- * glyphs its font lacks, so an em dash or a middle dot arrives as a stray
- * rectangle. `assertAscii` in the tests guards that.
- *
- * Lines longer than the front display are paged on word boundaries, so long
- * wording is fine — it just takes another 2.2 seconds to read.
- */
 export const EVENT_TEXT = {
-  matchStart: (radiant: string, dire: string): string =>
-    `${radiant} vs ${dire}`,
-  matchEnd: (): string => 'Game over',
-  roshan: (): string => `Roshan killed`,
-  building: (tag: string, what: string, noun: string): string =>
-    `${tag} lost ${what} ${noun}`,
-  kill: (tag: string, gained: number): string =>
+  matchStart: () => '',
+  matchEnd: () => 'Game over',
+  roshan: () => `Roshan killed`,
+  building: (tag: string, what: string, noun: string) => `${tag} lost ${what} ${noun}`,
+  kill: (tag: string, gained: number) =>
     `${tag} ${gained > 1 ? `${gained} kills` : 'kill'}`,
 } as const;
 
-/** How buildings are named once written out. Edit here to rename a lane. */
 export const BUILDING_WORDS = {
-  tier: (n: string): string => `tier ${n}`,
+  tier: (n: string) => `tier ${n}`,
   top: 'top',
   mid: 'mid',
   bottom: 'bottom',
@@ -64,16 +31,9 @@ export const BUILDING_WORDS = {
   ranged: 'ranged',
   towerSingular: 'tower',
   towerPlural: 'towers',
-  /** Already plural in English; "barrackss" is not a word. */
   barracks: 'barracks',
 } as const;
 
-/**
- * `tower_state` bit layout, per team.
- *
- * Bits 9 and 10 are the two tier-4 towers; which is which is not worth
- * asserting, so both are labelled `T4` and the ambiguity disappears.
- */
 const TOWER_NAMES = [
   'TOP T1',
   'TOP T2',
@@ -88,7 +48,6 @@ const TOWER_NAMES = [
   'T4',
 ] as const;
 
-/** `barracks_state` bit layout, per team. */
 const BARRACKS_NAMES = [
   'TOP MELEE',
   'TOP RANGED',
@@ -98,10 +57,6 @@ const BARRACKS_NAMES = [
   'BOT RANGED',
 ] as const;
 
-/**
- * Roshan's respawn window is eight to eleven minutes, so a timer jumping above
- * this from nothing means he just died rather than the clock ticking down.
- */
 const ROSHAN_KILL_THRESHOLD_SEC = 60;
 
 export type EventState = {
@@ -142,28 +97,20 @@ export function stateOf(snapshot: MatchSnapshot): EventState {
   };
 }
 
-/**
- * Compares two polls and reports the single most interesting thing that changed.
- *
- * One event per poll: at a five-second cadence several things happen at once,
- * and flashing the bar twice in one frame reads as a glitch rather than a
- * teamfight.
- */
 export function detectEvent(
   previous: EventState,
   snapshot: MatchSnapshot,
 ): { event: MatchEvent | null; state: EventState } {
   const state = stateOf(snapshot);
 
-  // A new match resets every counter, so treat it as a start rather than
-  // reporting a phantom twenty-kill swing.
+  // A new match resets every counter, so treat it as a start rather than a phantom swing.
   if (previous.matchId !== state.matchId) {
     return {
       event: state.live
         ? {
             kind: 'match-start',
             side: null,
-            text: EVENT_TEXT.matchStart(snapshot.radiant.name, snapshot.dire.name),
+            text: EVENT_TEXT.matchStart(),
             priority: 90,
             sound: true,
           }
@@ -171,6 +118,7 @@ export function detectEvent(
       state,
     };
   }
+
   if (previous.live && !state.live) {
     return {
       event: {
@@ -183,6 +131,7 @@ export function detectEvent(
       state,
     };
   }
+
   if (!state.live) {
     return { event: null, state };
   }
@@ -195,9 +144,11 @@ export function detectEvent(
   ].filter((event): event is MatchEvent => event !== null);
 
   const best = candidates.reduce<MatchEvent | null>(
-    (winner, event) => (winner === null || event.priority > winner.priority ? event : winner),
+    (winner, event) =>
+      winner === null || event.priority > winner.priority ? event : winner,
     null,
   );
+
   return { event: best, state };
 }
 
@@ -217,6 +168,7 @@ function roshanEvent(previous: EventState, state: EventState): MatchEvent | null
       sound: true,
     };
   }
+
   return null;
 }
 
@@ -274,10 +226,6 @@ function barracksEvents(
   ];
 }
 
-/**
- * A building falls when its bit clears. A `null` on either side means the source
- * does not report that mask at all, which is not the same as nothing falling.
- */
 function buildingEvent(
   before: number | null,
   after: number | null,
@@ -301,6 +249,7 @@ function buildingEvent(
       lost.push(names[bit] ?? `#${bit}`);
     }
   }
+
   if (lost.length === 0) {
     return null;
   }
@@ -315,14 +264,13 @@ function buildingEvent(
     kind,
     side,
     text: EVENT_TEXT.building(tag, spellOut(lost), noun),
-    // A double loss in one poll is a bigger deal than a single one.
+
     priority: priority + lost.length,
     sound: true,
   };
 }
 
-/** `MID T2` reads as `mid tier 2` when there is room to say it properly. */
-function spellOut(lost: readonly string[]): string {
+function spellOut(lost: readonly string[]) {
   return lost
     .map((name) =>
       name

@@ -1,14 +1,3 @@
-/**
- * Who won a match that has already finished.
- *
- * Needed because the live feed simply stops listing a game when it ends, and the
- * series score it carried was the score *going into* that game. Without this,
- * the break after game 1 of a Bo3 would show 0-0 and only correct itself when
- * game 2 starts.
- *
- * OpenDota's `/matches/{id}` answers this with no key, which is why it is used
- * here rather than Steam's `GetMatchDetails` (same field, but needs one).
- */
 const ENDPOINT = 'https://api.opendota.com/api/matches';
 
 export type Winner = 'radiant' | 'dire';
@@ -17,13 +6,6 @@ export type ResultLookup = {
   winnerOf(matchId: string): Promise<Winner | null>;
 };
 
-/**
- * The demo's winner, decided rather than looked up.
- *
- * The synthetic match has no id anyone can resolve, so without this the demo's
- * result screen sits on `GAME OVER` with nobody boxed — which is exactly the
- * part of that screen worth looking at.
- */
 export class DemoResultLookup implements ResultLookup {
   constructor(private readonly winner: Winner = 'radiant') {}
 
@@ -33,7 +15,6 @@ export class DemoResultLookup implements ResultLookup {
 }
 
 export class MatchResultLookup implements ResultLookup {
-  /** Results never change, so a match is only ever asked about once. */
   private readonly cache = new Map<string, Winner>();
   private readonly pending = new Set<string>();
 
@@ -46,12 +27,6 @@ export class MatchResultLookup implements ResultLookup {
     return this.cache.get(matchId) ?? null;
   }
 
-  /**
-   * `null` while the result is not available yet — OpenDota takes a few minutes
-   * to ingest a match after it ends, so this is expected to fail at first and
-   * succeed on a later poll. Never throws: an unknown winner degrades to the
-   * stale series score, which is worse but not wrong-looking.
-   */
   async winnerOf(matchId: string): Promise<Winner | null> {
     if (!matchId || matchId === 'demo') {
       return null;
@@ -60,6 +35,7 @@ export class MatchResultLookup implements ResultLookup {
     if (cached) {
       return cached;
     }
+
     if (this.pending.has(matchId)) {
       return null;
     }
@@ -79,8 +55,7 @@ export class MatchResultLookup implements ResultLookup {
       }
       const radiantWin = (body as Record<string, unknown>)['radiant_win'];
       if (typeof radiantWin !== 'boolean') {
-        // Present but null means "parsed, outcome unknown" — a replay that has
-        // not been processed yet. Worth asking again later.
+        // Present but null means "parsed, outcome unknown" — replay not processed yet.
         return null;
       }
       const winner: Winner = radiantWin ? 'radiant' : 'dire';

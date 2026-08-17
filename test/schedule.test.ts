@@ -9,8 +9,8 @@ import {
   parseScheduleFile,
   ScheduleFileError,
   shortenStage,
-} from '../src/dota/schedule/json.js';
-import { seriesTypeToBestOf, StratzScheduleSource } from '../src/dota/schedule/stratz.js';
+} from '../src/dota/schedule/json';
+import { seriesTypeToBestOf, StratzScheduleSource } from '../src/dota/schedule/stratz';
 
 const AUG16_10 = Date.parse('2026-08-16T10:00:00+08:00');
 const AUG16_13 = Date.parse('2026-08-16T13:00:00+08:00');
@@ -48,10 +48,10 @@ test('the soonest match wins, whatever order the file lists them in', () => {
 
 test('a match that already started stays next through its grace window', () => {
   const parsed = parseScheduleFile(FILE);
-  // Ten minutes late: broadcasts run late, and blanking the display then is wrong.
+
   const late = buildSchedule(parsed, AUG16_10 + 10 * 60_000);
   assert.equal(late.next?.teamA, 'Team Spirit');
-  // An hour late: it is not coming, move on to the next one.
+
   const gone = buildSchedule(parsed, AUG16_10 + 60 * 60_000);
   assert.equal(gone.next?.teamA, 'Tundra');
 });
@@ -81,7 +81,9 @@ test('the bracket row naming both teams is marked without being told', () => {
 
 test('an explicit next flag beats the name-matching heuristic', () => {
   const raw = JSON.stringify({
-    matches: [{ teamA: 'Spirit', teamB: 'Falcons', startsAt: '2026-08-16T10:00:00+08:00' }],
+    matches: [
+      { teamA: 'Spirit', teamB: 'Falcons', startsAt: '2026-08-16T10:00:00+08:00' },
+    ],
     bracket: [
       { label: 'A', text: 'Spirit vs Falcons' },
       { label: 'B', text: 'Someone else', next: true },
@@ -144,8 +146,6 @@ test('stratz series types map to best-of counts', () => {
 });
 
 test('stratz parses the documented node shape into a schedule', async () => {
-  // Locks in what the parser expects, so a live response that differs shows up
-  // as a diff against this rather than as an empty display.
   const body = {
     data: {
       league: {
@@ -188,6 +188,7 @@ test('stratz parses the documented node shape into a schedule', async () => {
   assert.equal(schedule?.next?.tagB, 'FAL');
   assert.equal(schedule?.next?.bestOf, 3);
   assert.equal(schedule?.next?.startsAtMs, AUG16_10);
+  assert.equal(schedule?.upcoming.length, 1);
   assert.equal(schedule?.bracket[1]?.text, 'Tundra 2-0 Liquid');
 });
 

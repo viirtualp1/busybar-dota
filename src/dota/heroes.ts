@@ -1,13 +1,5 @@
-/**
- * Hero id → short name.
- *
- * Fetched from OpenDota rather than vendored: the list grows every patch, and a
- * stale hardcoded table shows `#145` for exactly the heroes people care about
- * during a new patch's tournament. A failed fetch degrades to `#id`, never throws.
- */
 const HEROES_URL = 'https://api.opendota.com/api/heroes';
 
-/** Names that stay readable when clipped to a few characters. */
 const SHORT_NAMES: Record<string, string> = {
   'Anti-Mage': 'AM',
   'Centaur Warrunner': 'Centaur',
@@ -50,11 +42,10 @@ export class HeroCatalog {
 
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
-  get ready(): boolean {
+  get ready() {
     return this.loaded;
   }
 
-  /** Resolves to `false` when the catalog could not be loaded; never rejects. */
   async load(signal?: AbortSignal): Promise<boolean> {
     try {
       const response = await this.fetchImpl(HEROES_URL, signal ? { signal } : {});
@@ -65,6 +56,7 @@ export class HeroCatalog {
       if (!Array.isArray(body)) {
         return false;
       }
+
       for (const entry of body as OpenDotaHero[]) {
         const id = Number(entry.id);
         const name = typeof entry.localized_name === 'string' ? entry.localized_name : '';
@@ -79,10 +71,11 @@ export class HeroCatalog {
     }
   }
 
-  name(heroId: number): string {
+  name(heroId: number) {
     if (!heroId) {
       return '-';
     }
+
     return this.names.get(heroId) ?? `#${heroId}`;
   }
 }

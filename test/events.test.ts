@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { detectEvent, initialEventState, stateOf } from '../src/domain/events.js';
-import { EventTicker } from '../src/domain/ticker.js';
-import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types.js';
+import { detectEvent, initialEventState, stateOf } from '../src/domain/events';
+import { EventTicker } from '../src/domain/ticker';
+import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types';
 
 const ALL_TOWERS = 0b111_1111_1111;
 const ALL_BARRACKS = 0b11_1111;
@@ -34,6 +34,7 @@ function snapshot(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
 
 function withDireTowers(mask: number): MatchSnapshot {
   const base = snapshot();
+
   return { ...base, dire: { ...base.dire, towerState: mask } };
 }
 
@@ -41,11 +42,12 @@ test('the first live poll of a match reports a start', () => {
   const { event } = detectEvent(initialEventState, snapshot());
   assert.equal(event?.kind, 'match-start');
   assert.equal(event?.sound, true);
+  assert.equal(event?.text, '');
 });
 
 test('a fallen tower is named by lane and tier, not just counted', () => {
   const before = stateOf(snapshot());
-  // Bit 4 is mid tier 2.
+
   const { event } = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 4)));
   assert.equal(event?.kind, 'tower');
   assert.equal(event?.side, 'dire');

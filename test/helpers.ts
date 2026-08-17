@@ -1,12 +1,12 @@
-import { BACK } from '../src/bar/layout.js';
-import { HeroCatalog } from '../src/dota/heroes.js';
-import type { Schedule } from '../src/dota/schedule/index.js';
+import { BACK } from '../src/bar/layout';
+import { HeroCatalog } from '../src/dota/heroes';
+import type { Schedule } from '../src/dota/schedule/index';
 import {
   FRONT_LINE_CHARS,
   type BackCell,
   type BackRow,
   type FrameOptions,
-} from '../src/view/frame.js';
+} from '../src/view/frame';
 
 export const heroes = new HeroCatalog();
 
@@ -25,7 +25,6 @@ export function frameOptions(overrides: Partial<FrameOptions> = {}): FrameOption
   };
 }
 
-/** Narrows a row to the two-column shape, failing loudly if it is a bracket row. */
 export function pairOf(row: BackRow | undefined): {
   left: BackCell | null;
   right: BackCell | null;
@@ -33,6 +32,7 @@ export function pairOf(row: BackRow | undefined): {
   if (!row || row.kind !== 'pair') {
     throw new Error(`expected a paired row, got ${row?.kind ?? 'nothing'}`);
   }
+
   return { left: row.left, right: row.right };
 }
 
@@ -44,21 +44,34 @@ export function wideOf(row: BackRow | undefined): {
   if (!row || row.kind !== 'wide') {
     throw new Error(`expected a bracket row, got ${row?.kind ?? 'nothing'}`);
   }
+
   return { label: row.label, text: row.text, highlight: row.highlight };
 }
 
 export function schedule(overrides: Partial<Schedule> = {}): Schedule {
+  const next = {
+    teamA: 'Team Spirit',
+    teamB: 'Falcons',
+    tagA: 'TS',
+    tagB: 'FLC',
+    startsAtMs: Date.UTC(2026, 7, 16, 8, 0, 0),
+    stage: 'Upper Bracket R2',
+    stageShort: 'UB2',
+    bestOf: 3,
+  };
+  const later = {
+    teamA: 'Tundra',
+    teamB: 'Liquid',
+    tagA: 'TUND',
+    tagB: 'LIQ',
+    startsAtMs: Date.UTC(2026, 7, 16, 10, 0, 0),
+    stage: 'Lower Bracket R2',
+    stageShort: 'LB2',
+    bestOf: 3,
+  };
   return {
-    next: {
-      teamA: 'Team Spirit',
-      teamB: 'Falcons',
-      tagA: 'TS',
-      tagB: 'FLC',
-      startsAtMs: Date.UTC(2026, 7, 16, 8, 0, 0),
-      stage: 'Upper Bracket R2',
-      stageShort: 'UB2',
-      bestOf: 3,
-    },
+    next,
+    upcoming: [next, later],
     bracket: [
       { label: 'UB R1', text: 'Spirit 2-0 Tundra', next: false },
       { label: 'UB R2', text: 'Spirit vs Falcons', next: true },

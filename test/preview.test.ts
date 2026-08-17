@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { backElements, frontElements } from '../src/bar/elements.js';
-import { BACK, FRONT } from '../src/bar/layout.js';
-import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types.js';
-import { Bitmap, parseColor } from '../src/preview/png.js';
-import { renderBack, renderFront } from '../src/preview/raster.js';
-import { buildFrame } from '../src/view/frame.js';
+import { backElements, frontElements } from '../src/bar/elements';
+import { BACK, FRONT } from '../src/bar/layout';
+import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types';
+import { Bitmap, parseColor } from '../src/preview/png';
+import { renderBack, renderFront } from '../src/preview/raster';
+import { buildFrame } from '../src/view/frame';
 
-import { frameOptions } from './helpers.js';
+import { frameOptions } from './helpers';
 
 const options = frameOptions();
 
@@ -50,8 +50,7 @@ test('the rendered displays are exactly device sized', () => {
 test('the front keeps team colour, since it is an RGB panel', () => {
   const frame = buildFrame(snapshot(), options);
   const bitmap = renderFront(frontElements(frame));
-  // Row 10 is the gap between the bold score above and the tiny row below, so
-  // it samples the band itself rather than whatever text is sitting on it.
+
   const left = pixel(bitmap, 1, 10);
   const right = pixel(bitmap, FRONT.width - 2, 10);
   assert.ok(left.g > left.r, 'radiant band should be green-dominant');

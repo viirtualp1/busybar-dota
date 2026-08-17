@@ -1,19 +1,9 @@
 #!/usr/bin/env node
-/**
- * Reads the schedule file and prints it as a table.
- *
- * Exists because the failure mode of a hand-written schedule is a time that is
- * off by a timezone — which looks completely fine in the file and only shows up
- * hours later as a countdown to the wrong thing. Printing tournament time and
- * your local time side by side makes that obvious in one glance.
- *
- *   npm run schedule:check
- */
 import { readFile } from 'node:fs/promises';
-import { loadConfig, loadEnvFile } from './config.js';
-import { buildSchedule, parseScheduleFile } from './dota/schedule/json.js';
-import { zoneOffsetMs } from './dota/schedule/zoned.js';
-import { formatCountdown } from './view/format.js';
+import { loadConfig, loadEnvFile } from './config';
+import { buildSchedule, parseScheduleFile } from './dota/schedule/json';
+import { zoneOffsetMs } from './dota/schedule/zoned';
+import { formatCountdown } from './view/format';
 
 loadEnvFile();
 const { config } = loadConfig();
@@ -41,8 +31,6 @@ const localZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const now = Date.now();
 const schedule = buildSchedule(parsed, now);
 
-// Showing the same zone twice is noise, and it is the normal case once the file
-// is written in whatever zone your schedule source displays.
 const sameZone = zonesMatch(zone, localZone);
 
 console.log(`${path} — ${parsed.entries.length} matches, times in ${zone}`);
@@ -97,9 +85,11 @@ console.log(
       : 'nothing — every match is finished or long past'
   }`,
 );
-console.log(`bracket rows: ${schedule.bracket.length}${parsed.bracket ? '' : ' (derived)'}`);
+console.log(
+  `bracket rows: ${schedule.bracket.length}${parsed.bracket ? '' : ' (derived)'}`,
+);
 
-function inZone(atMs: number, timeZone: string): string {
+function inZone(atMs: number, timeZone: string) {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone,
     day: '2-digit',
@@ -110,18 +100,15 @@ function inZone(atMs: number, timeZone: string): string {
   }).format(new Date(atMs));
 }
 
-function pad(text: string, width: number): string {
+function pad(text: string, width: number) {
   return text.length >= width ? `${text} ` : text.padEnd(width);
 }
 
-/**
- * `+04:00` and `Asia/Tbilisi` name the same thing here, so compare by what they
- * resolve to right now rather than by string.
- */
-function zonesMatch(a: string, b: string): boolean {
+function zonesMatch(a: string, b: string) {
   if (a === b) {
     return true;
   }
+
   try {
     return zoneOffsetMs(Date.now(), a) === zoneOffsetMs(Date.now(), b);
   } catch {
