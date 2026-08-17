@@ -16,6 +16,8 @@ export type Config = {
   frameMs: number;
   requestTimeoutMs: number;
   demo: boolean;
+  sounds: boolean;
+  killSoundGapMs: number;
   scheduleKind: ScheduleKind;
   scheduleFile: string;
   stratzToken: string;
@@ -37,6 +39,8 @@ export const DEFAULTS = {
   pollMs: 5000,
   frameMs: 200,
   requestTimeoutMs: 10_000,
+  /** A teamfight can surface several kills in one poll; one chirp is plenty. */
+  killSoundGapMs: 4000,
 } as const;
 
 const LIMITS = {
@@ -45,6 +49,7 @@ const LIMITS = {
   drawPriority: { min: 0, max: 100 },
   requestTimeoutMs: { min: 1000, max: 30_000 },
   leagueId: { min: 0, max: 100_000_000 },
+  killSoundGapMs: { min: 0, max: 60_000 },
 } as const;
 
 export function loadEnvFile(cwd = process.cwd()): void {
@@ -159,6 +164,12 @@ export function loadConfig(
         LIMITS.requestTimeoutMs,
       ),
       demo,
+      sounds: read('SOUNDS') !== '0',
+      killSoundGapMs: number(
+        'KILL_SOUND_GAP_MS',
+        DEFAULTS.killSoundGapMs,
+        LIMITS.killSoundGapMs,
+      ),
       scheduleKind,
       scheduleFile,
       stratzToken,

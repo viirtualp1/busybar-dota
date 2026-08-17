@@ -1,9 +1,30 @@
 import { BusyBar, type DisplayDrawParams } from '@busy-app/busy-lib';
+import type { MatchEvent } from '../domain/events.js';
 import type { DotaFrame } from '../view/frame.js';
 import { backElements, frontElements } from './elements.js';
-import { isLowPriority, toBarError } from './errors.js';
+import { isClientError, isLowPriority, toBarError } from './errors.js';
 
 export const APP_NAME = 'dota';
+
+/**
+ * Stock sounds, with fallbacks — firmware versions disagree about extensions,
+ * and a missing file should cost one failed call, not one per event forever.
+ */
+const SOUNDS: Partial<Record<NonNullable<MatchEvent>, readonly string[]>> = {
+  'radiant-kill': ['shared/volume_change.snd', 'shared/volume_change.wav'],
+  'dire-kill': ['shared/volume_change.snd', 'shared/volume_change.wav'],
+  'radiant-tower': [
+    'shared/calendar_event_starts.snd',
+    'shared/calendar_event_starts.wav',
+    'shared/volume_change.snd',
+  ],
+  'dire-tower': [
+    'shared/calendar_event_starts.snd',
+    'shared/calendar_event_starts.wav',
+    'shared/volume_change.snd',
+  ],
+  'match-start': ['shared/calendar_event_starts.snd', 'shared/volume_change.snd'],
+};
 
 export type BarConnection = {
   addr: string;
@@ -28,6 +49,7 @@ export class BarDisplay {
   private lastKey = '';
   private cleared = false;
   private warnedPriority = false;
+  private failedSounds = new Set<string>();
 
   constructor(
     private readonly bar: BusyBar,
@@ -77,6 +99,29 @@ export class BarDisplay {
       throw error;
     } finally {
       this.drawing = false;
+    }
+  }
+
+  async playEvent(event: NonNullable<MatchEvent>): Promise<void> {
+    const names = SOUNDS[event];
+    if (!names) {
+      return;
+    }
+    for (const name of names) {
+      if (this.failedSounds.has(name)) {
+        continue;
+      }
+      try {
+        await this.bar.AudioPlay({ application_name: APP_NAME, stock_path: name });
+        return;
+      } catch (error) {
+        // 4xx means this file is not there; anything else is transient and the
+        // next event can try again.
+        if (!isClientError(error)) {
+          return;
+        }
+        this.failedSounds.add(name);
+      }
     }
   }
 

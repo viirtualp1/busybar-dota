@@ -1,0 +1,38 @@
+{
+  "_comment": "Times as Liquipedia shows them to you — set timezone to whatever zone your source displays, not the tournament's.",
+  "timezone": "Asia/Tbilisi",
+  "date": "2026-08-20",
+  "matches": [
+    {
+      "teams": "IW vs TSpirit",
+      "time": "06:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3
+    },
+    {
+      "teams": "VISION vs BB",
+      "time": "09:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3
+    },
+    {
+      "teams": "Liquid vs Yandex",
+      "time": "12:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3
+    },
+    {
+      "teams": "NGX vs Falcons",
+      "time": "15:00",
+      "stage": "Upper Bracket Quarterfinals",
+      "bo": 3
+    },
+    {
+      "teams": "TBD vs TBD",
+      "time": "06:00",
+      "date": "2026-08-21",
+      "stage": "Upper Bracket Semifinals",
+      "bo": 3
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { radiantFillWidth } from '../bar/layout.js';
 import type { MatchEvent } from '../domain/events.js';
 import type { HeroCatalog } from '../dota/heroes.js';
+import type { SeriesBreak } from '../domain/series.js';
 import type { Schedule } from '../dota/schedule/index.js';
 import { isDrafting, type MatchSnapshot, type TeamState } from '../dota/types.js';
 import { COLORS } from './colors.js';
@@ -23,7 +24,7 @@ export type BackRow =
   | { kind: 'pair'; left: BackCell | null; right: BackCell | null }
   | { kind: 'wide'; label: string; text: string; highlight: boolean };
 
-export type FrameMode = 'live' | 'draft' | 'upcoming' | 'idle';
+export type FrameMode = 'live' | 'draft' | 'series-break' | 'upcoming' | 'idle';
 
 export type DotaFrame = {
   mode: FrameMode;
@@ -52,6 +53,8 @@ export type FrameOptions = {
   nowEpochMs: number;
   /** `null` when no schedule source is configured or it is unreachable. */
   schedule: Schedule | null;
+  /** Set between games of an undecided series; outranks the schedule. */
+  seriesBreak: SeriesBreak | null;
   /** Shown on the back display when there is nothing at all to show. */
   idleNote: string;
 };
@@ -68,6 +71,10 @@ const emptyRow: BackRow = { kind: 'pair', left: null, right: null };
 
 export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): DotaFrame {
   if (!snapshot.live) {
+    // A series resuming in ten minutes beats a scheduled match hours away.
+    if (options.seriesBreak) {
+      return seriesBreakFrame(options.seriesBreak, options);
+    }
     return options.schedule?.next
       ? upcomingFrame(options.schedule, options)
       : idleFrame(options.idleNote, options.maxRows);
@@ -101,6 +108,54 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
         : `${leader} ${leadText}  ${towerText(snapshot)}`,
     backRows: drafting ? draftRows(snapshot, options) : backRows(snapshot, options),
   };
+}
+
+/**
+ * Between games of a series.
+ *
+ * The countdown is kept in the headline slot, but it counts to the next
+ * *scheduled* match — nobody publishes a start time for game 2 of a series, so
+ * inventing one would be a lie. The teams and the series score come from the
+ * game that just ended, and the back display says which is which.
+ */
+function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
+  const scheduled = options.schedule?.next ?? null;
+  const countdown =
+    scheduled?.startsAtMs != null
+      ? formatCountdown(scheduled.startsAtMs - options.nowEpochMs)
+      : 'BREAK';
+
+  const score = `${current.radiantWins}-${current.direWins}`;
+  const finishedGame = current.nextGame - 1;
+
+  return {
+    mode: 'series-break',
+    scoreText: countdown,
+    radiantTag: current.radiantTag,
+    direTag: current.direTag,
+    // A trailing marker while the winner of the finished game is still unknown,
+    // so a stale score never passes for a settled one.
+    clockText: current.pendingResult ? `${score}*` : score,
+    seriesText: `G${current.nextGame}`,
+    radiantFill: radiantFillWidth(0),
+    showBands: false,
+    showDivider: false,
+    ledColor: '',
+    backHeader: `${current.radiantName} | ${current.direName}`,
+    backSub: current.pendingResult
+      ? `game ${finishedGame} done, result pending  ${scheduledNote(scheduled)}`
+      : `${score}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
+    backRows: options.schedule
+      ? bracketRows(options.schedule, options.maxRows)
+      : Array.from({ length: options.maxRows }, () => emptyRow),
+  };
+}
+
+function scheduledNote(next: Schedule['next']): string {
+  if (!next?.startsAtMs) {
+    return '';
+  }
+  return `next ${formatStartTime(next.startsAtMs)} ${next.stageShort}`.trim();
 }
 
 /**

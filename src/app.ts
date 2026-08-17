@@ -2,9 +2,21 @@ import type { BarDisplay } from './bar/display.js';
 import { errorMessage, isForbidden } from './bar/errors.js';
 import { BACK } from './bar/layout.js';
 import type { Config } from './config.js';
-import { detectEvent, initialEventState, type EventState } from './domain/events.js';
+import {
+  detectEvent,
+  initialEventState,
+  type EventState,
+  type MatchEvent,
+} from './domain/events.js';
 import { FlashWindow } from './domain/flash.js';
+import {
+  applyResult,
+  beginBreak,
+  isBreakExpired,
+  type SeriesBreak,
+} from './domain/series.js';
 import type { HeroCatalog } from './dota/heroes.js';
+import type { MatchResultLookup } from './dota/match-result.js';
 import type { Schedule, ScheduleSource } from './dota/schedule/index.js';
 import type { MatchSource } from './dota/source.js';
 import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
@@ -19,6 +31,7 @@ export type AppDeps = {
   config: Config;
   source: MatchSource;
   schedule: ScheduleSource;
+  results: MatchResultLookup;
   heroes: HeroCatalog;
   display: BarDisplay;
   logger?: Logger;
@@ -38,6 +51,7 @@ export class App {
   private readonly config: Config;
   private readonly source: MatchSource;
   private readonly scheduleSource: ScheduleSource;
+  private readonly results: MatchResultLookup;
   private readonly heroes: HeroCatalog;
   private readonly display: BarDisplay;
   private readonly logger: Logger;
@@ -46,6 +60,10 @@ export class App {
   private snapshot: MatchSnapshot = idleSnapshot();
   private schedule: Schedule | null = null;
   private scheduleFetchedAt = 0;
+  /** The last snapshot that was actually live, kept to detect a series break. */
+  private lastLive: MatchSnapshot | null = null;
+  private seriesBreak: SeriesBreak | null = null;
+  private lastKillSoundAt = -Infinity;
   private events: EventState = initialEventState;
   private idleNote = 'waiting for the next game';
   private running = false;
@@ -56,6 +74,7 @@ export class App {
     this.config = deps.config;
     this.source = deps.source;
     this.scheduleSource = deps.schedule;
+    this.results = deps.results;
     this.heroes = deps.heroes;
     this.display = deps.display;
     this.logger = deps.logger ?? console;
@@ -121,6 +140,7 @@ export class App {
         this.idleNote = next ? '' : 'waiting for the next game';
         this.handleEvents();
         this.warnings.delete('source');
+        await this.trackSeries(next);
         if (!next) {
           await this.refreshSchedule();
         }
@@ -133,6 +153,60 @@ export class App {
 
       await this.sleep(this.config.pollMs);
     }
+  }
+
+  /**
+   * Notices a series going on break, and resolves who won the game that ended.
+   *
+   * The live feed drops a game the moment it finishes and the series score it
+   * carried was the score *going into* that game, so the winner has to be looked
+   * up separately or the break would show a score one game out of date.
+   */
+  private async trackSeries(live: MatchSnapshot | null): Promise<void> {
+    if (live) {
+      // A game is running, so any break is over.
+      this.lastLive = live;
+      this.seriesBreak = null;
+      return;
+    }
+
+    const now = Date.now();
+    if (!this.seriesBreak && this.lastLive) {
+      this.seriesBreak = beginBreak(this.lastLive, now);
+      this.lastLive = null;
+      if (this.seriesBreak) {
+        this.logger.info(
+          `[series break] ${this.seriesBreak.radiantTag} vs ${this.seriesBreak.direTag}, ` +
+            `game ${this.seriesBreak.nextGame - 1} finished`,
+        );
+      }
+    }
+
+    if (!this.seriesBreak) {
+      return;
+    }
+    if (isBreakExpired(this.seriesBreak, now)) {
+      this.logger.info('[series break] nothing resumed, falling back to the schedule');
+      this.seriesBreak = null;
+      return;
+    }
+    if (!this.seriesBreak.pendingResult) {
+      return;
+    }
+
+    // Expected to come back empty for the first few minutes while the match is
+    // still being ingested; every poll is another attempt.
+    const winner = await this.results.winnerOf(this.seriesBreak.lastMatchId);
+    if (!winner) {
+      return;
+    }
+    const updated = applyResult(this.seriesBreak, winner);
+    this.seriesBreak = updated;
+    this.logger.info(
+      updated
+        ? `[series break] ${winner} took it, series ${updated.radiantWins}-${updated.direWins}`
+        : `[series break] ${winner} took the series`,
+    );
   }
 
   /** Kept out of the main poll rhythm: a bracket does not change every 5 seconds. */
@@ -168,6 +242,33 @@ export class App {
     this.logger.info(
       `[${event}] ${radiant.tag} ${radiant.kills}-${dire.kills} ${dire.tag}`,
     );
+
+    if (this.shouldPlay(event)) {
+      void this.display.playEvent(event).catch(() => {
+        // sound is cosmetic
+      });
+    }
+  }
+
+  /**
+   * Towers and match starts always chirp; kills are throttled.
+   *
+   * A five-second poll can surface half a teamfight at once, and one sound per
+   * kill turns a good fight into a machine gun.
+   */
+  private shouldPlay(event: NonNullable<MatchEvent>): boolean {
+    if (!this.config.sounds) {
+      return false;
+    }
+    if (event !== 'radiant-kill' && event !== 'dire-kill') {
+      return true;
+    }
+    const now = this.now();
+    if (now - this.lastKillSoundAt < this.config.killSoundGapMs) {
+      return false;
+    }
+    this.lastKillSoundAt = now;
+    return true;
   }
 
   /** Display failures must not take the polling loop down with them. */
@@ -182,6 +283,7 @@ export class App {
             flash: this.flash.active(now),
             nowEpochMs: Date.now(),
             schedule: this.schedule,
+            seriesBreak: this.seriesBreak,
             idleNote: this.idleNote,
           }),
         );
