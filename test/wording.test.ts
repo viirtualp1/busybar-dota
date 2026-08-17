@@ -142,12 +142,25 @@ test('the result screen boxes the winner and drops the event line', () => {
   const boxes = frontElements(frame).filter((element) =>
     element.id.startsWith('final-box'),
   );
-  assert.equal(boxes.length, 2);
-  const bordered = boxes.filter(
-    (element) => element.type === 'rectangle' && (element.border_width ?? 0) > 0,
+  assert.equal(boxes.length, 2, 'both slots are always emitted, so none can linger');
+  const filled = boxes.filter(
+    (element) =>
+      element.type === 'rectangle' && element.fill_colors?.[0] !== '#00000000',
   );
-  assert.equal(bordered.length, 1, 'exactly one team is boxed');
-  assert.equal(bordered[0]?.id, 'final-box-radiant');
+  assert.equal(filled.length, 1, 'exactly one team is marked');
+  assert.equal(filled[0]?.id, 'final-box-radiant');
+});
+
+test('the result screen still shows the series score beside the tags', () => {
+  const frame = buildFrame(
+    idleSnapshot(),
+    frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 0 }),
+  );
+  // The bottom-row text must not hide it the way the live ticker hides the clock.
+  const series = frontElements(frame).find((element) => element.id === 'series');
+  assert.ok(series && series.type === 'text');
+  assert.equal(series.text, '1-0');
+  assert.notEqual(series.color, '#00000000');
 });
 
 test('a pending result boxes nobody rather than guessing', () => {
@@ -159,12 +172,33 @@ test('a pending result boxes nobody rather than guessing', () => {
     }),
   );
   assert.equal(frame.finalTags?.winner, null);
-  assert.equal(frame.seriesText, '');
-  const bordered = frontElements(frame).filter(
+  const filled = frontElements(frame).filter(
     (element) =>
       element.id.startsWith('final-box') &&
       element.type === 'rectangle' &&
-      (element.border_width ?? 0) > 0,
+      element.fill_colors?.[0] !== '#00000000',
   );
-  assert.equal(bordered.length, 0);
+  assert.equal(filled.length, 0);
+});
+
+test('waiting screens are static: tags in the corners, series score between', () => {
+  const upcoming = buildFrame(
+    idleSnapshot(),
+    frameOptions({ schedule: schedule(), nowEpochMs: 0 }),
+  );
+  assert.equal(upcoming.radiantTag, 'TS');
+  assert.equal(upcoming.direTag, 'FLC');
+  // Shown even before a ball is kicked, because "where is this series" is the
+  // question, and `0-0` is a real answer to it.
+  assert.equal(upcoming.seriesText, '0-0');
+  assert.equal(upcoming.tickerText, '', 'nothing pages on a waiting screen');
+
+  const between = buildFrame(
+    idleSnapshot(),
+    // Past the two-minute result screen, so this is the countdown view.
+    frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 5 * 60 * 1000 }),
+  );
+  assert.equal(between.mode, 'series-break');
+  assert.equal(between.seriesText, '1-0');
+  assert.equal(between.tickerText, '');
 });

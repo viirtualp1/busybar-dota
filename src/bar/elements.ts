@@ -10,7 +10,10 @@ import { BACK, clipToWidth, FONT_WIDTH, FRONT, rowY } from './layout.js';
  */
 export function frontElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
   const fill = frame.radiantFill;
-  const ticking = frame.tickerText.length > 0;
+  // The result screen also puts text on the bottom row, but its series score
+  // lives higher up and must not be hidden with the clock.
+  const ticking = frame.tickerText.length > 0 && frame.finalTags === null;
+  const bottomText = frame.tickerText;
 
   return [
     bandRect(
@@ -116,9 +119,9 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
     {
       id: 'ticker',
       type: 'text',
-      text: ticking ? clipToWidth(frame.tickerText, FRONT.width - 2, 'tiny') : ' ',
+      text: bottomText ? clipToWidth(bottomText, FRONT.width - 2, 'tiny') : ' ',
       font: 'tiny',
-      color: ticking ? COLORS.ticker : COLORS.transparent,
+      color: bottomText ? COLORS.ticker : COLORS.transparent,
       display: 'front',
       align: 'top_mid',
       x: Math.floor(FRONT.width / 2),
@@ -167,11 +170,14 @@ function boxWidth(tag: string): number {
 }
 
 /**
- * Full height. The series score shares the row between the two tags rather than
- * sitting under them: at 16px there is no room for a box, a bold tag inside it
- * and a line beneath without something touching a border.
+ * Rows 0..10, leaving the bottom row for the next match.
+ *
+ * Filled rather than outlined: a 16px panel cannot hold a border, a bold tag
+ * inside it and a line of text beneath without the border cutting through
+ * glyphs. A solid block behind the winner marks it just as clearly and only
+ * needs the rows the tag already occupies.
  */
-const FINAL_BOX_HEIGHT = FRONT.height;
+const FINAL_BOX_HEIGHT = 11;
 
 function boxRect(
   id: string,
@@ -188,11 +194,10 @@ function boxRect(
     y: 0,
     width,
     height: FINAL_BOX_HEIGHT,
-    // Border only: a filled box would swallow the tag drawn on top of it.
-    fill: 'none',
-    fill_colors: [COLORS.transparent],
-    border_width: visible ? 1 : 0,
-    border_color: visible ? COLORS.white : COLORS.transparent,
+    fill: 'solid',
+    fill_colors: [visible ? COLORS.white : COLORS.transparent],
+    border_width: 0,
+    border_color: COLORS.transparent,
     timeout: 0,
   };
 }
@@ -209,13 +214,13 @@ function finalTag(
     type: 'text',
     text: text || ' ',
     font: 'bold',
-    // The loser recedes rather than disappearing — you want to read the pairing.
-    color: text ? (winner ? COLORS.white : COLORS.dim) : COLORS.transparent,
+    // Knocked out of the block for the winner; the loser recedes but stays
+    // readable, because you want the pairing, not just the name.
+    color: text ? (winner ? COLORS.panelDark : COLORS.dim) : COLORS.transparent,
     display: 'front',
     align,
     x,
-    // Roughly centred for a ten-pixel bold glyph in a sixteen-pixel panel.
-    y: 3,
+    y: 0,
     timeout: 0,
   };
 }

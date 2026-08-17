@@ -28,4 +28,6 @@ export const COLORS = {
   ledBarracks: '#FFD400FF',
   /** Ticker text sits where the clock was, so it needs to read as different. */
   ticker: '#FFFFFFFF',
+  /** Text knocked out of a filled block — the panel's own unlit colour. */
+  panelDark: '#000000FF',
 } as const;

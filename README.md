@@ -59,11 +59,14 @@ barracks` — since there is room for the detail the front cannot fit.
 
 **When a game ends** — the result takes the screen
 
-For two minutes the display is only about who won: both tags in bold with a box
-drawn around the winner, the series score between them, and nothing else. The
-loser is dimmed rather than hidden, because you want to read the pairing. Then
-the countdown comes back and the result keeps showing underneath it for the next
-twenty minutes.
+For two minutes the display is only about who won: both tags in bold with the
+winner knocked out of a filled block, the series score between them, and the
+next scheduled match on the bottom row. The loser is dimmed rather than hidden,
+because you want to read the pairing. Then the countdown comes back.
+
+The winner is marked by a filled block rather than an outline for a boring
+reason: 16 pixels cannot hold a border, a bold tag inside it and a line of text
+beneath without the border cutting through glyphs.
 
 The winner is not in the live feed — a finished game simply stops being listed,
 and the series score it carried was the score _going into_ that game. It is
@@ -72,13 +75,14 @@ the screen says `GAME OVER` and `result pending` rather than guessing.
 
 **Between games** — countdown, start time and bracket
 
-When nothing is live, the same slots switch meaning rather than going blank: the
-score becomes a countdown to the next match and the row beneath it carries the
-matchup in **full team names**, scrolling if they do not fit. Abbreviated tags
-belong to a running game, where the two halves of the bar say which is which;
-while waiting there is nothing to decode them against. The back display carries
-the date, time and series length, plus the bracket with the upcoming tie marked
-`>` and the rest dimmed.
+When nothing is live the layout does not change shape — it keeps the one a
+running game uses. Tags in the corners, the countdown where the kill score goes,
+and the **series score between them, `0-0` included**. All of it static: a line
+that paged between `game 1`, `game 2`, `game 3` was the hardest thing on the
+display to read.
+
+The back display carries the date, time and series length, plus the bracket with
+the upcoming tie marked `>` and the rest dimmed.
 
 The round label in the bracket only appears when the round _changes_ — four
 quarterfinals in a row do not each need to say `UBQ`, and dropping the
@@ -111,6 +115,10 @@ development loop. Run a synthetic match instead:
 ```bash
 npm run demo
 ```
+
+The demo also decides its own winner — the synthetic match has no id anyone can
+resolve, so without that its result screen would sit on `GAME OVER` with nobody
+marked, which is the part of that screen worth looking at.
 
 It plays a believable game rather than a stress test: a draft, then thirty
 minutes ending 17-12, towers falling in a plausible order, Roshan twice, mid

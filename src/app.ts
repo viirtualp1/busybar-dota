@@ -11,7 +11,7 @@ import {
   type SeriesBreak,
 } from './domain/series.js';
 import type { HeroCatalog } from './dota/heroes.js';
-import type { MatchResultLookup } from './dota/match-result.js';
+import type { ResultLookup } from './dota/match-result.js';
 import type { Schedule, ScheduleSource } from './dota/schedule/index.js';
 import type { MatchSource } from './dota/source.js';
 import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
@@ -26,7 +26,7 @@ export type AppDeps = {
   config: Config;
   source: MatchSource;
   schedule: ScheduleSource;
-  results: MatchResultLookup;
+  results: ResultLookup;
   heroes: HeroCatalog;
   display: BarDisplay;
   logger?: Logger;
@@ -46,7 +46,7 @@ export class App {
   private readonly config: Config;
   private readonly source: MatchSource;
   private readonly scheduleSource: ScheduleSource;
-  private readonly results: MatchResultLookup;
+  private readonly results: ResultLookup;
   private readonly heroes: HeroCatalog;
   private readonly display: BarDisplay;
   private readonly logger: Logger;

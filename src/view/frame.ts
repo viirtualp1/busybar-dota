@@ -2,13 +2,11 @@ import { FONT_WIDTH, FRONT, radiantFillWidth } from '../bar/layout.js';
 import {
   fittingChars,
   tickerLine as renderTickerLine,
-  tickerLineLooping,
   type TickerStyle,
 } from './ticker-text.js';
 import type { MatchEvent, MatchEventKind } from '../domain/events.js';
 import type { HeroCatalog } from '../dota/heroes.js';
 import {
-  isResultFresh,
   isSeriesOver,
   isShowingResult,
   resultText,
@@ -201,6 +199,7 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
  */
 function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
   const series = `${current.radiantWins}-${current.direWins}`;
+  const scheduled = options.schedule?.next ?? null;
 
   return {
     mode: 'result',
@@ -209,16 +208,19 @@ function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
     scoreText: '',
     radiantTag: '',
     direTag: '',
-    // Series score under the names, and nothing else competing with it.
     clockText: '',
-    seriesText: current.pendingResult ? '' : series,
+    // Between the two tags, always — a series that has not started yet reads
+    // `0-0`, which is still the answer to "where is this series".
+    seriesText: series,
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: COLORS.ledStart,
     leadText: '',
     leadSide: null,
-    tickerText: '',
+    // Short enough to sit still: the whole point of this screen is that nothing
+    // moves while you read it.
+    tickerText: scheduled ? `next ${scheduled.tagA} vs ${scheduled.tagB}` : '',
     finalTags: {
       radiant: current.radiantTag,
       dire: current.direTag,
@@ -263,20 +265,17 @@ function leadFields(lead: number): Pick<DotaFrame, 'leadText' | 'leadSide'> {
  */
 function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
   const scheduled = options.schedule?.next ?? null;
-  const countdown =
-    scheduled?.startsAtMs !== undefined && scheduled.startsAtMs !== null
-      ? formatCountdown(scheduled.startsAtMs - options.nowEpochMs)
-      : 'BREAK';
-
-  const score = `${current.radiantWins}-${current.direWins}`;
+  const series = `${current.radiantWins}-${current.direWins}`;
 
   return {
     mode: 'series-break',
-    scoreText: countdown,
-    radiantTag: '',
-    direTag: '',
+    scoreText: countdownTo(scheduled, options.nowEpochMs),
+    // Corners, like a running game. Nothing here moves or cycles: a line that
+    // pages between `game 1`, `game 2`, `game 3` was unreadable at a glance.
+    radiantTag: current.radiantTag,
+    direTag: current.direTag,
     clockText: '',
-    seriesText: '',
+    seriesText: series,
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
@@ -284,20 +283,23 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     leadText: '',
     leadSide: null,
     finalTags: null,
-    // The finished game's result, spelled out, under the countdown — the
-    // `1-0*` and `G3` that used to sit here explained nothing.
-    tickerText: renderTickerLine(
-      options.tickerStyle,
-      `${resultText(current)}. Series ${score}, game ${current.nextGame} next`,
-      options.tickerChars,
-      options.nowEpochMs - current.startedAtMs,
-    ),
+    tickerText: '',
     backHeader: `${current.radiantName} | ${current.direName}`,
-    backSub: `series ${score}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
+    backSub: `series ${series}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
     backRows: options.schedule
       ? bracketRows(options.schedule, options.maxRows)
       : Array.from({ length: options.maxRows }, () => emptyRow),
   };
+}
+
+/** `BREAK` when nothing is scheduled — better than a countdown to nothing. */
+function countdownTo(next: Schedule['next'], nowEpochMs: number): string {
+  if (!next) {
+    return 'BREAK';
+  }
+  return next.startsAtMs === null
+    ? 'TBD'
+    : formatCountdown(next.startsAtMs - nowEpochMs);
 }
 
 function scheduledNote(next: Schedule['next']): string {
@@ -320,41 +322,24 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     return idleFrame(options.idleNote, options.maxRows);
   }
 
-  const countdown =
-    next.startsAtMs === null
-      ? 'TBD'
-      : formatCountdown(next.startsAtMs - options.nowEpochMs);
-
-  // Full names under the countdown rather than `IW` / `TSP` in the corners:
-  // there is nothing else competing for the row while waiting, and a tag you
-  // have to decode is no use when the match is still hours away.
-  const matchup = `${next.teamA} vs ${next.teamB}`;
-  const recent = options.seriesBreak;
-  const line =
-    recent && isResultFresh(recent, options.nowEpochMs)
-      ? `${resultText(recent)}. Next: ${matchup}`
-      : matchup;
-
   return {
     mode: 'upcoming',
-    scoreText: countdown,
-    radiantTag: '',
-    direTag: '',
+    scoreText: countdownTo(next, options.nowEpochMs),
+    // Tags in the corners and the series score between them, exactly where they
+    // sit during a game. Static: the paging line that used to live here was the
+    // hardest thing on the display to read.
+    radiantTag: next.tagA,
+    direTag: next.tagB,
     clockText: '',
-    seriesText: '',
-    leadText: '',
-    leadSide: null,
-    finalTags: null,
-    tickerText: tickerLineLooping(
-      options.tickerStyle,
-      line,
-      options.tickerChars,
-      options.nowEpochMs,
-    ),
+    seriesText: '0-0',
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: '',
+    leadText: '',
+    leadSide: null,
+    finalTags: null,
+    tickerText: '',
     backHeader: `${next.teamA} | ${next.teamB}`,
     backSub: startLine(next, options),
     backRows: bracketRows(schedule, options.maxRows),

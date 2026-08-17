@@ -27,16 +27,12 @@ test('nothing live plus a schedule gives the upcoming view', () => {
   assert.equal(frame.mode, 'upcoming');
   // Two hours out, in the 8:00 UTC fixture.
   assert.equal(frame.scoreText, '2:00:00');
-  // Abbreviated tags and the stage both left the front while waiting: nothing
-  // else wants the row, and full names beat `TS` / `UB2` at a glance.
-  assert.equal(frame.radiantTag, '');
-  assert.equal(frame.direTag, '');
-  assert.equal(frame.seriesText, '');
-  // The line loops from its head, so at t=0 into the cycle it reads from the start.
-  assert.match(
-    buildFrame(idleSnapshot(), frameOptions({ nowEpochMs: 0, schedule: schedule() })).tickerText,
-    /^Team Spirit vs/,
-  );
+  // Tags in the corners and the series score between them, same as a running
+  // game — and all of it static.
+  assert.equal(frame.radiantTag, 'TS');
+  assert.equal(frame.direTag, 'FLC');
+  assert.equal(frame.seriesText, '0-0');
+  assert.equal(frame.tickerText, '');
 });
 
 test('the back line carries the date and series length, not the stage', () => {
@@ -45,6 +41,16 @@ test('the back line carries the date and series length, not the stage', () => {
   assert.match(frame.backSub, /BO3/);
   assert.doesNotMatch(frame.backSub, /Upper Bracket/);
   assert.equal(frame.backHeader, 'Team Spirit | Falcons');
+});
+
+test('the waiting line never pages, whatever the clock says', () => {
+  for (const nowEpochMs of [0, 1234, 987_654_321]) {
+    const frame = buildFrame(
+      idleSnapshot(),
+      frameOptions({ nowEpochMs, schedule: schedule() }),
+    );
+    assert.equal(frame.tickerText, '', `paged at ${nowEpochMs}`);
+  }
 });
 
 test('a repeated round label is printed once, not on every row', () => {

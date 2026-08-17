@@ -13,7 +13,26 @@ const ENDPOINT = 'https://api.opendota.com/api/matches';
 
 export type Winner = 'radiant' | 'dire';
 
-export class MatchResultLookup {
+export type ResultLookup = {
+  winnerOf(matchId: string): Promise<Winner | null>;
+};
+
+/**
+ * The demo's winner, decided rather than looked up.
+ *
+ * The synthetic match has no id anyone can resolve, so without this the demo's
+ * result screen sits on `GAME OVER` with nobody boxed — which is exactly the
+ * part of that screen worth looking at.
+ */
+export class DemoResultLookup implements ResultLookup {
+  constructor(private readonly winner: Winner = 'radiant') {}
+
+  winnerOf(): Promise<Winner | null> {
+    return Promise.resolve(this.winner);
+  }
+}
+
+export class MatchResultLookup implements ResultLookup {
   /** Results never change, so a match is only ever asked about once. */
   private readonly cache = new Map<string, Winner>();
   private readonly pending = new Set<string>();
