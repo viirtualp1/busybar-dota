@@ -191,6 +191,28 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
   };
 }
 
+
+/**
+ * `Team Spirit VS Falcons`, or the series score in place of `VS` once the
+ * series is under way.
+ *
+ * Full names when they fit, tags when they do not — never a clipped name and
+ * never a paging line: this screen exists to be read at a glance from across
+ * the room. `TICKER_CHARS` is the knob if the device font fits more than the
+ * conservative 4px-a-glyph budget assumes.
+ */
+export function matchupLine(
+  teams: { aName: string; bName: string; aTag: string; bTag: string },
+  middle: string,
+  maxChars: number,
+): string {
+  const full = `${teams.aName} ${middle} ${teams.bName}`;
+  if (full.length <= maxChars) {
+    return full;
+  }
+  return `${teams.aTag} ${middle} ${teams.bTag}`;
+}
+
 /**
  * The two minutes after a game ends.
  *
@@ -270,12 +292,10 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
   return {
     mode: 'series-break',
     scoreText: countdownTo(scheduled, options.nowEpochMs),
-    // Corners, like a running game. Nothing here moves or cycles: a line that
-    // pages between `game 1`, `game 2`, `game 3` was unreadable at a glance.
-    radiantTag: current.radiantTag,
-    direTag: current.direTag,
+    radiantTag: '',
+    direTag: '',
     clockText: '',
-    seriesText: series,
+    seriesText: '',
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
@@ -283,7 +303,17 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     leadText: '',
     leadSide: null,
     finalTags: null,
-    tickerText: '',
+    // Past game one, so the score itself sits between the names instead of `VS`.
+    tickerText: matchupLine(
+      {
+        aName: current.radiantName,
+        bName: current.direName,
+        aTag: current.radiantTag,
+        bTag: current.direTag,
+      },
+      series,
+      options.tickerChars,
+    ),
     backHeader: `${current.radiantName} | ${current.direName}`,
     backSub: `series ${series}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
     backRows: options.schedule
@@ -325,13 +355,12 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
   return {
     mode: 'upcoming',
     scoreText: countdownTo(next, options.nowEpochMs),
-    // Tags in the corners and the series score between them, exactly where they
-    // sit during a game. Static: the paging line that used to live here was the
-    // hardest thing on the display to read.
-    radiantTag: next.tagA,
-    direTag: next.tagB,
+    // The matchup goes under the timer in full rather than as two tags in the
+    // corners: with the names spelled out below, the corners only repeated them.
+    radiantTag: '',
+    direTag: '',
     clockText: '',
-    seriesText: '0-0',
+    seriesText: '',
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
@@ -339,7 +368,12 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     leadText: '',
     leadSide: null,
     finalTags: null,
-    tickerText: '',
+    // Nothing has been played yet, so the two teams are simply facing off.
+    tickerText: matchupLine(
+      { aName: next.teamA, bName: next.teamB, aTag: next.tagA, bTag: next.tagB },
+      'VS',
+      options.tickerChars,
+    ),
     backHeader: `${next.teamA} | ${next.teamB}`,
     backSub: startLine(next, options),
     backRows: bracketRows(schedule, options.maxRows),

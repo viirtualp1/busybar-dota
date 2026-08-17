@@ -75,11 +75,17 @@ the screen says `GAME OVER` and `result pending` rather than guessing.
 
 **Between games** — countdown, start time and bracket
 
-When nothing is live the layout does not change shape — it keeps the one a
-running game uses. Tags in the corners, the countdown where the kill score goes,
-and the **series score between them, `0-0` included**. All of it static: a line
-that paged between `game 1`, `game 2`, `game 3` was the hardest thing on the
-display to read.
+When nothing is live the countdown takes the top row and the matchup sits under
+it, spelled out: `Team Spirit VS Falcons` before a series starts, and
+`Team Spirit 1-0 Falcons` once one is under way — the score simply stands where
+`VS` did. All of it static: a line that paged between `game 1`, `game 2`,
+`game 3` was the hardest thing on the display to read.
+
+If the full names do not fit the line budget the pair steps down to tags —
+`TS 1-0 FLC` — rather than clipping a name or paging it. At the conservative
+default of 17 glyphs most real team names will take that fallback; raise
+`TICKER_CHARS` until they stop, since the device font is very likely narrower
+than the 4px a glyph this code has to assume.
 
 The back display carries the date, time and series length, plus the bracket with
 the upcoming tie marked `>` and the rest dimmed.

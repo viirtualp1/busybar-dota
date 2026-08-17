@@ -186,12 +186,10 @@ test('waiting screens are static: tags in the corners, series score between', ()
     idleSnapshot(),
     frameOptions({ schedule: schedule(), nowEpochMs: 0 }),
   );
-  assert.equal(upcoming.radiantTag, 'TS');
-  assert.equal(upcoming.direTag, 'FLC');
-  // Shown even before a ball is kicked, because "where is this series" is the
-  // question, and `0-0` is a real answer to it.
-  assert.equal(upcoming.seriesText, '0-0');
-  assert.equal(upcoming.tickerText, '', 'nothing pages on a waiting screen');
+  // The matchup sits under the timer, not as tags in the corners.
+  assert.equal(upcoming.radiantTag, '');
+  assert.equal(upcoming.direTag, '');
+  assert.match(upcoming.tickerText, /VS/);
 
   const between = buildFrame(
     idleSnapshot(),
@@ -199,6 +197,6 @@ test('waiting screens are static: tags in the corners, series score between', ()
     frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 5 * 60 * 1000 }),
   );
   assert.equal(between.mode, 'series-break');
-  assert.equal(between.seriesText, '1-0');
-  assert.equal(between.tickerText, '');
+  // Past game one, so the score stands in for `VS`.
+  assert.match(between.tickerText, /1-0/);
 });

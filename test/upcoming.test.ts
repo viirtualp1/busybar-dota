@@ -27,12 +27,56 @@ test('nothing live plus a schedule gives the upcoming view', () => {
   assert.equal(frame.mode, 'upcoming');
   // Two hours out, in the 8:00 UTC fixture.
   assert.equal(frame.scoreText, '2:00:00');
-  // Tags in the corners and the series score between them, same as a running
-  // game — and all of it static.
-  assert.equal(frame.radiantTag, 'TS');
-  assert.equal(frame.direTag, 'FLC');
-  assert.equal(frame.seriesText, '0-0');
-  assert.equal(frame.tickerText, '');
+  // The matchup goes under the timer in full; the corners stay empty so the
+  // names are not repeated as tags right above themselves.
+  assert.equal(frame.radiantTag, '');
+  assert.equal(frame.direTag, '');
+  assert.equal(frame.seriesText, '');
+  // At the conservative 17-glyph budget the full names do not fit, so it steps
+  // down to tags rather than clipping a name in half.
+  assert.equal(frame.tickerText, 'TS VS FLC');
+
+  const roomy = buildFrame(
+    idleSnapshot(),
+    frameOptions({ nowEpochMs: NOW, schedule: schedule(), tickerChars: 24 }),
+  );
+  assert.equal(roomy.tickerText, 'Team Spirit VS Falcons');
+});
+
+test('a series already under way shows its score instead of VS', () => {
+  const frame = buildFrame(
+    idleSnapshot(),
+    frameOptions({
+      seriesBreak: {
+        radiantName: 'Spirit',
+        direName: 'Falcons',
+        radiantTag: 'TS',
+        direTag: 'FLC',
+        radiantWins: 1,
+        direWins: 0,
+        nextGame: 2,
+        winsNeeded: 2,
+        lastMatchId: 'm1',
+        pendingResult: false,
+        lastWinner: 'radiant',
+        startedAtMs: 0,
+      },
+      // Past the two-minute result screen.
+      nowEpochMs: 5 * 60 * 1000,
+      tickerChars: 30,
+    }),
+  );
+  assert.equal(frame.mode, 'series-break');
+  assert.equal(frame.tickerText, 'Spirit 1-0 Falcons');
+});
+
+test('names fall back to tags rather than being clipped or paged', () => {
+  const narrow = buildFrame(
+    idleSnapshot(),
+    frameOptions({ nowEpochMs: NOW, schedule: schedule(), tickerChars: 12 }),
+  );
+  assert.equal(narrow.tickerText, 'TS VS FLC');
+  assert.ok(narrow.tickerText.length <= 12);
 });
 
 test('the back line carries the date and series length, not the stage', () => {
@@ -43,14 +87,15 @@ test('the back line carries the date and series length, not the stage', () => {
   assert.equal(frame.backHeader, 'Team Spirit | Falcons');
 });
 
-test('the waiting line never pages, whatever the clock says', () => {
-  for (const nowEpochMs of [0, 1234, 987_654_321]) {
-    const frame = buildFrame(
-      idleSnapshot(),
-      frameOptions({ nowEpochMs, schedule: schedule() }),
-    );
-    assert.equal(frame.tickerText, '', `paged at ${nowEpochMs}`);
-  }
+test('the waiting line never changes, whatever the clock says', () => {
+  const lines = new Set(
+    [0, 1234, 987_654_321].map(
+      (nowEpochMs) =>
+        buildFrame(idleSnapshot(), frameOptions({ nowEpochMs, schedule: schedule() }))
+          .tickerText,
+    ),
+  );
+  assert.equal(lines.size, 1, `the line moved: ${[...lines].join(' | ')}`);
 });
 
 test('a repeated round label is printed once, not on every row', () => {
