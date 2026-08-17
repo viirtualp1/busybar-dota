@@ -24,4 +24,8 @@ export const COLORS = {
   ledRadiant: '#3FBF5FFF',
   ledDire: '#E14B3AFF',
   ledStart: '#FFFFFFFF',
+  ledRoshan: '#B36BFFFF',
+  ledBarracks: '#FFD400FF',
+  /** Ticker text sits where the clock was, so it needs to read as different. */
+  ticker: '#FFFFFFFF',
 } as const;

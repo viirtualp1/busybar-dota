@@ -9,9 +9,10 @@ export function frameOptions(overrides: Partial<FrameOptions> = {}): FrameOption
   return {
     heroes,
     maxRows: BACK.maxRows,
-    flash: null,
+    ticker: null,
     nowEpochMs: Date.UTC(2026, 7, 16, 6, 0, 0),
     schedule: null,
+    seriesBreak: null,
     idleNote: '',
     ...overrides,
   };

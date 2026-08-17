@@ -1,5 +1,5 @@
 import { BusyBar, type DisplayDrawParams } from '@busy-app/busy-lib';
-import type { MatchEvent } from '../domain/events.js';
+import type { MatchEvent, MatchEventKind } from '../domain/events.js';
 import type { DotaFrame } from '../view/frame.js';
 import { backElements, frontElements } from './elements.js';
 import { isClientError, isLowPriority, toBarError } from './errors.js';
@@ -10,20 +10,24 @@ export const APP_NAME = 'dota';
  * Stock sounds, with fallbacks — firmware versions disagree about extensions,
  * and a missing file should cost one failed call, not one per event forever.
  */
-const SOUNDS: Partial<Record<NonNullable<MatchEvent>, readonly string[]>> = {
-  'radiant-kill': ['shared/volume_change.snd', 'shared/volume_change.wav'],
-  'dire-kill': ['shared/volume_change.snd', 'shared/volume_change.wav'],
-  'radiant-tower': [
+const SOUNDS: Partial<Record<MatchEventKind, readonly string[]>> = {
+  tower: [
     'shared/calendar_event_starts.snd',
     'shared/calendar_event_starts.wav',
     'shared/volume_change.snd',
   ],
-  'dire-tower': [
+  barracks: [
+    'shared/calendar_event_starts.snd',
+    'shared/calendar_event_starts.wav',
+    'shared/volume_change.snd',
+  ],
+  roshan: [
     'shared/calendar_event_starts.snd',
     'shared/calendar_event_starts.wav',
     'shared/volume_change.snd',
   ],
   'match-start': ['shared/calendar_event_starts.snd', 'shared/volume_change.snd'],
+  'match-end': ['shared/calendar_event_starts.snd', 'shared/volume_change.snd'],
 };
 
 export type BarConnection = {
@@ -102,8 +106,12 @@ export class BarDisplay {
     }
   }
 
-  async playEvent(event: NonNullable<MatchEvent>): Promise<void> {
-    const names = SOUNDS[event];
+  /** Silent for anything the event itself marks silent — kills, above all. */
+  async playEvent(event: MatchEvent): Promise<void> {
+    if (!event.sound) {
+      return;
+    }
+    const names = SOUNDS[event.kind];
     if (!names) {
       return;
     }

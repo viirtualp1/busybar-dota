@@ -115,6 +115,10 @@ function toSnapshot(game: RawGame): MatchSnapshot {
     seriesType: num(game['series_type']),
     spectators: num(game['spectators']),
     delaySec: num(game['stream_delay_s']),
+    roshanRespawnSec:
+      scoreboard['roshan_respawn_timer'] === undefined
+        ? null
+        : num(scoreboard['roshan_respawn_timer']),
     source: 'steam',
   };
 }
@@ -134,6 +138,9 @@ function team(
     ...emptyTeam(name, deriveTag(name, fallbackTag)),
     kills: num(board['score']),
     towers: towerState === undefined ? null : countBits(num(towerState), TOWER_BITS),
+    towerState: towerState === undefined ? null : num(towerState),
+    barracksState:
+      board['barracks_state'] === undefined ? null : num(board['barracks_state']),
     seriesWins,
     players: players(board['players']),
     draft: {

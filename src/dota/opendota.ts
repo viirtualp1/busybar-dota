@@ -22,6 +22,7 @@ const ENDPOINT = 'https://api.opendota.com/api/live';
  * next 11 are Dire towers; barracks live above those.
  */
 const TOWER_BITS = 11;
+const TOWER_MASK = (1 << TOWER_BITS) - 1;
 const DIRE_TOWER_SHIFT = 11;
 
 export type OpenDotaOptions = {
@@ -76,18 +77,25 @@ function toSnapshot(game: Record<string, unknown>): MatchSnapshot {
   const buildings = buildingState === undefined ? null : num(buildingState);
   const roster = players(game['players']);
 
+  // Only the tower halves of `building_state` are read: the barracks bits sit
+  // above them but their exact offsets are not documented, and guessing would
+  // announce racks that never fell.
+  const radiantTowers = buildings === null ? null : buildings & TOWER_MASK;
+  const direTowers =
+    buildings === null ? null : (buildings >> DIRE_TOWER_SHIFT) & TOWER_MASK;
+
   const radiant = team(
     str(game['team_name_radiant']) || 'Radiant',
     'RAD',
     num(game['radiant_score']),
-    buildings === null ? null : countBits(buildings, TOWER_BITS),
+    radiantTowers,
     roster.filter((player) => player.side === 0).map((player) => player.state),
   );
   const dire = team(
     str(game['team_name_dire']) || 'Dire',
     'DIR',
     num(game['dire_score']),
-    buildings === null ? null : countBits(buildings >> DIRE_TOWER_SHIFT, TOWER_BITS),
+    direTowers,
     roster.filter((player) => player.side === 1).map((player) => player.state),
   );
 
@@ -102,6 +110,8 @@ function toSnapshot(game: Record<string, unknown>): MatchSnapshot {
     seriesType: 0,
     spectators: num(game['spectators']),
     delaySec: num(game['delay']),
+    // OpenDota's live feed does not expose a Roshan timer.
+    roshanRespawnSec: null,
     source: 'opendota',
   };
 }
@@ -110,13 +120,14 @@ function team(
   name: string,
   fallbackTag: string,
   kills: number,
-  towers: number | null,
+  towerState: number | null,
   roster: PlayerState[],
 ): TeamState {
   return {
     ...emptyTeam(name, deriveTag(name, fallbackTag)),
     kills,
-    towers,
+    towers: towerState === null ? null : countBits(towerState, TOWER_BITS),
+    towerState,
     players: roster,
   };
 }

@@ -10,6 +10,7 @@ import { BACK, clipToWidth, FRONT, rowY } from './layout.js';
  */
 export function frontElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
   const fill = frame.radiantFill;
+  const ticking = frame.tickerText.length > 0;
 
   return [
     bandRect(
@@ -60,12 +61,14 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
       y: FRONT.scoreY,
       timeout: 0,
     },
+    // An event takes the whole bottom row for a few seconds; the clock and the
+    // series score step aside rather than fighting it for space.
     {
       id: 'clock',
       type: 'text',
-      text: clipToWidth(frame.clockText || ' ', FRONT.clockWidth, 'tiny'),
+      text: ticking ? ' ' : clipToWidth(frame.clockText || ' ', FRONT.clockWidth, 'tiny'),
       font: 'tiny',
-      color: frame.clockText ? COLORS.clock : COLORS.transparent,
+      color: !ticking && frame.clockText ? COLORS.clock : COLORS.transparent,
       display: 'front',
       align: 'top_left',
       x: 1,
@@ -76,14 +79,31 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
     {
       id: 'series',
       type: 'text',
-      text: clipToWidth(frame.seriesText || ' ', FRONT.seriesWidth, 'tiny'),
+      text: ticking
+        ? ' '
+        : clipToWidth(frame.seriesText || ' ', FRONT.seriesWidth, 'tiny'),
       font: 'tiny',
-      color: frame.seriesText ? COLORS.muted : COLORS.transparent,
+      color: !ticking && frame.seriesText ? COLORS.muted : COLORS.transparent,
       display: 'front',
-      align: 'top_right',
-      x: FRONT.width - 1,
+      // Centred, so the series score does not drift with the width of whatever
+      // sits beside it.
+      align: 'top_mid',
+      x: Math.floor(FRONT.width / 2),
       y: FRONT.bottomY,
       width: FRONT.seriesWidth,
+      timeout: 0,
+    },
+    {
+      id: 'ticker',
+      type: 'text',
+      text: ticking ? clipToWidth(frame.tickerText, FRONT.width - 2, 'tiny') : ' ',
+      font: 'tiny',
+      color: ticking ? COLORS.ticker : COLORS.transparent,
+      display: 'front',
+      align: 'top_mid',
+      x: Math.floor(FRONT.width / 2),
+      y: FRONT.bottomY,
+      width: FRONT.width - 2,
       timeout: 0,
     },
   ];

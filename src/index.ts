@@ -4,6 +4,7 @@ import { BarDisplay, createBusyBar } from './bar/display.js';
 import { errorMessage } from './bar/errors.js';
 import { loadConfig, loadEnvFile } from './config.js';
 import { HeroCatalog } from './dota/heroes.js';
+import { MatchResultLookup } from './dota/match-result.js';
 import { createScheduleSource } from './dota/schedule/index.js';
 import { createSource } from './dota/source.js';
 
@@ -49,6 +50,7 @@ const app = new App({
   config,
   source,
   schedule,
+  results: new MatchResultLookup(config.requestTimeoutMs),
   heroes: new HeroCatalog(),
   display: new BarDisplay(bar, config.drawPriority),
 });

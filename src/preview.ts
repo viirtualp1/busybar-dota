@@ -19,11 +19,15 @@ import { loadConfig, loadEnvFile } from './config.js';
 import { HeroCatalog } from './dota/heroes.js';
 import { createScheduleSource, DemoScheduleSource } from './dota/schedule/index.js';
 import { createSource, DemoSource } from './dota/source.js';
+import { detectEvent, stateOf, type MatchEvent } from './domain/events.js';
 import { idleSnapshot, type MatchSnapshot } from './dota/types.js';
+import type { SeriesBreak } from './domain/series.js';
 import { buildFrame, type DotaFrame } from './view/frame.js';
 import { renderBack, renderFront } from './preview/raster.js';
 
 const SCALE = 8;
+/** 29.4 game minutes at the demo's 20x speed: the moment the mid racks fall. */
+const EVENT_SEEK_MS = ((29.4 * 60 + 60) / 20) * 1000;
 
 loadEnvFile();
 const { config } = loadConfig();
@@ -31,6 +35,8 @@ const argv = process.argv.slice(2);
 const live = argv.includes('--live');
 const draftOnly = argv.includes('--draft');
 const upcoming = argv.includes('--upcoming');
+const breakOnly = argv.includes('--break');
+const eventShot = argv.includes('--event');
 
 const heroes = new HeroCatalog();
 if (!(await heroes.load())) {
@@ -41,11 +47,12 @@ const snapshot = await capture();
 const frame = buildFrame(snapshot, {
   heroes,
   maxRows: BACK.maxRows,
-  flash: null,
+  ticker: await captureEvent(),
   nowEpochMs: Date.now(),
   // `--upcoming` forces the between-games view; otherwise it appears whenever
   // nothing is live and a schedule source has something to say.
-  schedule: upcoming || !snapshot.live ? await captureSchedule() : null,
+  schedule: upcoming || breakOnly || !snapshot.live ? await captureSchedule() : null,
+  seriesBreak: breakOnly ? demoBreak() : null,
   idleNote: 'nothing live right now',
 });
 
@@ -56,8 +63,38 @@ write('preview-back.png', back.toPng());
 
 printAscii(frame);
 
+/**
+ * Reruns the detector across the two polls either side of the seek point, so a
+ * screenshot can show a real ticker line rather than a made-up one.
+ */
+async function captureEvent(): Promise<MatchEvent | null> {
+  if (!eventShot) {
+    return null;
+  }
+  const before = (await new DemoSource(Date.now() - EVENT_SEEK_MS + 5000).poll()) ?? idleSnapshot();
+  const after = (await new DemoSource(Date.now() - EVENT_SEEK_MS).poll()) ?? idleSnapshot();
+  return detectEvent(stateOf(before), after).event;
+}
+
+/** A plausible mid-series pause, for the `--break` screenshot. */
+function demoBreak(): SeriesBreak {
+  return {
+    radiantName: 'Team Spirit',
+    direName: 'Falcons',
+    radiantTag: 'TS',
+    direTag: 'FLC',
+    radiantWins: 1,
+    direWins: 0,
+    nextGame: 2,
+    winsNeeded: 2,
+    lastMatchId: 'demo',
+    pendingResult: false,
+    startedAtMs: Date.now(),
+  };
+}
+
 async function capture(): Promise<MatchSnapshot> {
-  if (upcoming) {
+  if (upcoming || breakOnly) {
     return idleSnapshot();
   }
   if (live) {
@@ -81,9 +118,9 @@ async function capture(): Promise<MatchSnapshot> {
     }
   }
 
-  // Seek two seconds in for a draft that is underway, or twenty for a game with
-  // kills, towers and a net worth swing on the board.
-  const seekMs = draftOnly ? 2000 : 20_000;
+  // Seek two seconds in for a draft that is underway, twenty for a game in
+  // full swing, or straight to the barracks falling for an event shot.
+  const seekMs = draftOnly ? 2000 : eventShot ? EVENT_SEEK_MS : 20_000;
   const demo = new DemoSource(Date.now() - seekMs);
   return (await demo.poll()) ?? idleSnapshot();
 }
@@ -126,7 +163,11 @@ function printAscii(current: DotaFrame): void {
   console.log(`\n[${current.mode}]`);
   console.log('--- front 72x16 ---');
   console.log(
-    `  ${current.radiantTag} [${current.scoreText}] ${current.direTag}   ${current.clockText}  ${current.seriesText}`,
+    `  ${current.radiantTag} [${current.scoreText}] ${current.direTag}` +
+      // The ticker owns the bottom row while it runs, so show what is really there.
+      (current.tickerText
+        ? `   ticker: ${current.tickerText}`
+        : `   ${current.clockText}  ${current.seriesText}`),
   );
   console.log(
     `  net worth bar: ${'#'.repeat(Math.round(current.radiantFill / 3))}${'.'.repeat(24 - Math.round(current.radiantFill / 3))}  (${current.radiantFill}/72px radiant)`,

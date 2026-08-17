@@ -26,6 +26,13 @@ export type TeamState = {
   kills: number;
   /** Towers still standing, 0..11. `null` when the source omits building state. */
   towers: number | null;
+  /**
+   * Raw `tower_state` bitmask, kept alongside the count so a fallen tower can be
+   * named by lane and tier rather than just counted.
+   */
+  towerState: number | null;
+  /** Raw `barracks_state` bitmask. Steam only. */
+  barracksState: number | null;
   /** Games won in the current series. */
   seriesWins: number;
   players: PlayerState[];
@@ -48,6 +55,11 @@ export type MatchSnapshot = {
   spectators: number;
   /** Broadcast delay in seconds — you are always watching the past. */
   delaySec: number;
+  /**
+   * Seconds until Roshan respawns. Jumps from 0 to several minutes the moment he
+   * dies, which is the only signal either API gives that it happened.
+   */
+  roshanRespawnSec: number | null;
   source: 'steam' | 'opendota' | 'demo';
 };
 
@@ -57,6 +69,8 @@ export function emptyTeam(name: string, tag: string): TeamState {
     tag,
     kills: 0,
     towers: null,
+    towerState: null,
+    barracksState: null,
     seriesWins: 0,
     players: [],
     draft: { picks: [], bans: [] },
@@ -94,6 +108,7 @@ export function idleSnapshot(): MatchSnapshot {
     seriesType: 0,
     spectators: 0,
     delaySec: 0,
+    roshanRespawnSec: null,
     source: 'opendota',
   };
 }

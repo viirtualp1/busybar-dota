@@ -2,13 +2,8 @@ import type { BarDisplay } from './bar/display.js';
 import { errorMessage, isForbidden } from './bar/errors.js';
 import { BACK } from './bar/layout.js';
 import type { Config } from './config.js';
-import {
-  detectEvent,
-  initialEventState,
-  type EventState,
-  type MatchEvent,
-} from './domain/events.js';
-import { FlashWindow } from './domain/flash.js';
+import { detectEvent, initialEventState, type EventState } from './domain/events.js';
+import { EventTicker } from './domain/ticker.js';
 import {
   applyResult,
   beginBreak,
@@ -55,7 +50,7 @@ export class App {
   private readonly heroes: HeroCatalog;
   private readonly display: BarDisplay;
   private readonly logger: Logger;
-  private readonly flash = new FlashWindow();
+  private readonly ticker = new EventTicker();
 
   private snapshot: MatchSnapshot = idleSnapshot();
   private schedule: Schedule | null = null;
@@ -63,7 +58,6 @@ export class App {
   /** The last snapshot that was actually live, kept to detect a series break. */
   private lastLive: MatchSnapshot | null = null;
   private seriesBreak: SeriesBreak | null = null;
-  private lastKillSoundAt = -Infinity;
   private events: EventState = initialEventState;
   private idleNote = 'waiting for the next game';
   private running = false;
@@ -236,39 +230,17 @@ export class App {
     if (event === null) {
       return;
     }
+    if (!this.ticker.push(event, this.now())) {
+      // Something more important is still on screen; do not chirp underneath it.
+      return;
+    }
 
-    this.flash.trigger(event, this.now());
-    const { radiant, dire } = this.snapshot;
-    this.logger.info(
-      `[${event}] ${radiant.tag} ${radiant.kills}-${dire.kills} ${dire.tag}`,
-    );
-
-    if (this.shouldPlay(event)) {
+    this.logger.info(`[${event.kind}] ${event.long}`);
+    if (this.config.sounds) {
       void this.display.playEvent(event).catch(() => {
         // sound is cosmetic
       });
     }
-  }
-
-  /**
-   * Towers and match starts always chirp; kills are throttled.
-   *
-   * A five-second poll can surface half a teamfight at once, and one sound per
-   * kill turns a good fight into a machine gun.
-   */
-  private shouldPlay(event: NonNullable<MatchEvent>): boolean {
-    if (!this.config.sounds) {
-      return false;
-    }
-    if (event !== 'radiant-kill' && event !== 'dire-kill') {
-      return true;
-    }
-    const now = this.now();
-    if (now - this.lastKillSoundAt < this.config.killSoundGapMs) {
-      return false;
-    }
-    this.lastKillSoundAt = now;
-    return true;
   }
 
   /** Display failures must not take the polling loop down with them. */
@@ -280,7 +252,7 @@ export class App {
           buildFrame(this.snapshot, {
             heroes: this.heroes,
             maxRows: BACK.maxRows,
-            flash: this.flash.active(now),
+            ticker: this.ticker.active(now),
             nowEpochMs: Date.now(),
             schedule: this.schedule,
             seriesBreak: this.seriesBreak,

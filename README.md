@@ -14,13 +14,21 @@ winning from across the room without reading a single number.
 - Kill score, big and centred
 - Team tags in their side's colour
 - Game clock (negative during the pre-horn countdown, like the game itself)
-- Series score on the right
-- LED flash on kills and tower falls, coloured by which team scored
+- Series score, centred under the kill score
+- **Event ticker**: when a tower, barracks or Roshan goes down, the bottom row
+  hands itself over for a few seconds — `FAL MID T2`, `FAL MID RAX`,
+  `ROSHAN DOWN` — with an LED flash and a sound, then gives the clock back.
+  Kills appear silently: there are dozens of them and one chirp each is a
+  machine gun.
 
 **Back**
 
 - Both team names, net worth lead and standing towers
-- Five rows, Radiant on the left and Dire on the right: hero + K/D/A
+- Five rows, Radiant on the left and Dire on the right: hero + K/D/A. The name
+  **alternates between hero and player every three seconds**, because the row has
+  space for one and you want both.
+- The sub-line carries the full event while the ticker runs — `FAL lost mid
+barracks` — since there is room for the detail the front cannot fit.
 - **During the draft** the same rows show picks in draft order, and the subtitle
   shows the ban count plus each side's most recent ban. The front clock reads
   `DRAFT` instead of counting down to a horn that has not been scheduled yet.
@@ -28,10 +36,14 @@ winning from across the room without reading a single number.
 **Between games** — countdown, start time and bracket
 
 When nothing is live, the same slots switch meaning rather than going blank: the
-score becomes a countdown to the next match, the tags become the two teams, the
-clock becomes the scheduled start time and the series slot the stage. The back
-display carries the full date, stage and series length, plus the bracket with
-the upcoming tie marked `>` and the rest dimmed.
+score becomes a countdown to the next match, the tags become the two teams and
+the clock becomes the scheduled start time. The back display carries the date,
+time and series length, plus the bracket with the upcoming tie marked `>` and
+the rest dimmed.
+
+The round label in the bracket only appears when the round _changes_ — four
+quarterfinals in a row do not each need to say `UBQ`, and dropping the
+repetition gives the team names the width instead.
 
 This needs a schedule source, and there is not a free one — see below.
 
@@ -61,9 +73,11 @@ development loop. Run a synthetic match instead:
 npm run demo
 ```
 
-It plays a full 40-minute game in two minutes, starting from a draft, and
-deliberately swings the net worth lead across zero so both colours and every
-event path get exercised.
+It plays a believable game rather than a stress test: a draft, then thirty
+minutes ending 17-12, towers falling in a plausible order, Roshan twice, mid
+barracks right at the end, and then the game stops being live so the
+between-games view gets exercised too. The whole thing runs in about a minute
+and a half at 20x.
 
 ### Screenshots without a Bar
 
@@ -71,6 +85,8 @@ event path get exercised.
 npm run shot               # the synthetic match, mid-game
 npm run shot -- --draft    # the draft phase
 npm run shot -- --upcoming # the between-games countdown and bracket
+npm run shot -- --break    # the pause between games of a series
+npm run shot -- --event    # the ticker, caught on the barracks falling
 npm run shot -- --live     # whatever is actually live right now
 ```
 
@@ -264,8 +280,11 @@ numbers on screen rather than blanking the display — slightly stale beats empt
 
 ## Things worth building next
 
-- Bans as a grid of hero portraits instead of a count plus the latest two — the
-  back display has the room once picks are done
-- Roshan timer — the Steam scoreboard has `roshan_respawn_timer`
-- Sound on tower falls, using the stock sounds the way busybar-livesplit does
+- A Roshan _countdown_ on screen, not just the kill notice — the timer is already
+  parsed
+- Who killed whom: per-player kill and death counters are in the Steam
+  scoreboard, but pairing them into "X killed Y" is guesswork when several land
+  in one five-second poll, so only the team is reported today
+- Bans as a grid of hero portraits — the back display has the room once picks are
+  done, but it means uploading images to device assets on every change
 - Per-player net worth bars instead of plain K/D/A text

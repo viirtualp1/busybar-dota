@@ -1,13 +1,69 @@
 import type { MatchSnapshot } from '../dota/types.js';
 
-export type MatchEvent =
-  | null
-  | 'radiant-kill'
-  | 'dire-kill'
-  | 'radiant-tower'
-  | 'dire-tower'
+export type Side = 'radiant' | 'dire';
+
+export type MatchEventKind =
   | 'match-start'
-  | 'match-end';
+  | 'match-end'
+  | 'kill'
+  | 'tower'
+  | 'barracks'
+  | 'roshan';
+
+export type MatchEvent = {
+  kind: MatchEventKind;
+  /** Which team it happened *to* for buildings, and *for* on kills. */
+  side: Side | null;
+  /** Fits the 72px front display: at most ~14 tiny glyphs. */
+  short: string;
+  /** Fits the 160px back display. */
+  long: string;
+  /**
+   * Only one event is shown per poll, so ties are broken by how rare and
+   * consequential the thing is: the game ending, then racks (they usually decide
+   * it), then Roshan, then a tower. A kill loses to everything — there are
+   * dozens of them.
+   */
+  priority: number;
+  /** Kills are silent on purpose — one chirp per kill is a machine gun. */
+  sound: boolean;
+};
+
+/**
+ * `tower_state` bit layout, per team.
+ *
+ * Bits 9 and 10 are the two tier-4 towers; which is which is not worth
+ * asserting, so both are labelled `T4` and the ambiguity disappears.
+ */
+const TOWER_NAMES = [
+  'TOP T1',
+  'TOP T2',
+  'TOP T3',
+  'MID T1',
+  'MID T2',
+  'MID T3',
+  'BOT T1',
+  'BOT T2',
+  'BOT T3',
+  'T4',
+  'T4',
+] as const;
+
+/** `barracks_state` bit layout, per team. */
+const BARRACKS_NAMES = [
+  'TOP MELEE',
+  'TOP RANGED',
+  'MID MELEE',
+  'MID RANGED',
+  'BOT MELEE',
+  'BOT RANGED',
+] as const;
+
+/**
+ * Roshan's respawn window is eight to eleven minutes, so a timer jumping above
+ * this from nothing means he just died rather than the clock ticking down.
+ */
+const ROSHAN_KILL_THRESHOLD_SEC = 60;
 
 export type EventState = {
   matchId: string;
@@ -15,6 +71,9 @@ export type EventState = {
   direKills: number;
   radiantTowers: number | null;
   direTowers: number | null;
+  radiantBarracks: number | null;
+  direBarracks: number | null;
+  roshanRespawnSec: number | null;
   live: boolean;
 };
 
@@ -24,6 +83,9 @@ export const initialEventState: EventState = {
   direKills: 0,
   radiantTowers: null,
   direTowers: null,
+  radiantBarracks: null,
+  direBarracks: null,
+  roshanRespawnSec: null,
   live: false,
 };
 
@@ -32,8 +94,11 @@ export function stateOf(snapshot: MatchSnapshot): EventState {
     matchId: snapshot.matchId,
     radiantKills: snapshot.radiant.kills,
     direKills: snapshot.dire.kills,
-    radiantTowers: snapshot.radiant.towers,
-    direTowers: snapshot.dire.towers,
+    radiantTowers: snapshot.radiant.towerState,
+    direTowers: snapshot.dire.towerState,
+    radiantBarracks: snapshot.radiant.barracksState,
+    direBarracks: snapshot.dire.barracksState,
+    roshanRespawnSec: snapshot.roshanRespawnSec,
     live: snapshot.live,
   };
 }
@@ -41,45 +106,226 @@ export function stateOf(snapshot: MatchSnapshot): EventState {
 /**
  * Compares two polls and reports the single most interesting thing that changed.
  *
- * Only one event per poll: at a 5s cadence several things can happen at once,
+ * One event per poll: at a five-second cadence several things happen at once,
  * and flashing the bar twice in one frame reads as a glitch rather than a
- * teamfight. Towers outrank kills because they are rarer.
+ * teamfight.
  */
 export function detectEvent(
   previous: EventState,
   snapshot: MatchSnapshot,
-): { event: MatchEvent; state: EventState } {
+): { event: MatchEvent | null; state: EventState } {
   const state = stateOf(snapshot);
 
   // A new match resets every counter, so treat it as a start rather than
-  // reporting a phantom 20-kill swing.
+  // reporting a phantom twenty-kill swing.
   if (previous.matchId !== state.matchId) {
-    return { event: state.live ? 'match-start' : null, state };
+    return {
+      event: state.live
+        ? {
+            kind: 'match-start',
+            side: null,
+            short: 'GAME ON',
+            long: `${snapshot.radiant.name} vs ${snapshot.dire.name}`,
+            priority: 90,
+            sound: true,
+          }
+        : null,
+      state,
+    };
   }
   if (previous.live && !state.live) {
-    return { event: 'match-end', state };
+    return {
+      event: {
+        kind: 'match-end',
+        side: null,
+        short: 'GAME OVER',
+        long: 'game finished',
+        priority: 100,
+        sound: true,
+      },
+      state,
+    };
   }
   if (!state.live) {
     return { event: null, state };
   }
 
-  // `towers` is null on sources without building state; a null↔number
-  // transition is a source change, not a tower falling.
-  if (fell(previous.radiantTowers, state.radiantTowers)) {
-    return { event: 'radiant-tower', state };
-  }
-  if (fell(previous.direTowers, state.direTowers)) {
-    return { event: 'dire-tower', state };
-  }
-  if (state.radiantKills > previous.radiantKills) {
-    return { event: 'radiant-kill', state };
-  }
-  if (state.direKills > previous.direKills) {
-    return { event: 'dire-kill', state };
-  }
-  return { event: null, state };
+  const candidates = [
+    roshanEvent(previous, state),
+    ...barracksEvents(previous, state, snapshot),
+    ...towerEvents(previous, state, snapshot),
+    killEvent(previous, state, snapshot),
+  ].filter((event): event is MatchEvent => event !== null);
+
+  const best = candidates.reduce<MatchEvent | null>(
+    (winner, event) => (winner === null || event.priority > winner.priority ? event : winner),
+    null,
+  );
+  return { event: best, state };
 }
 
-function fell(before: number | null, after: number | null): boolean {
-  return before !== null && after !== null && after < before;
+function roshanEvent(previous: EventState, state: EventState): MatchEvent | null {
+  const before = previous.roshanRespawnSec;
+  const after = state.roshanRespawnSec;
+  if (before === null || after === null) {
+    return null;
+  }
+  // The timer counts down, so it only rises when he has just been killed.
+  if (after > before && after > ROSHAN_KILL_THRESHOLD_SEC) {
+    return {
+      kind: 'roshan',
+      side: null,
+      short: 'ROSHAN DOWN',
+      long: `Roshan killed, back in ${Math.round(after / 60)} min`,
+      priority: 75,
+      sound: true,
+    };
+  }
+  return null;
+}
+
+function towerEvents(
+  previous: EventState,
+  state: EventState,
+  snapshot: MatchSnapshot,
+): (MatchEvent | null)[] {
+  return [
+    buildingEvent(
+      previous.radiantTowers,
+      state.radiantTowers,
+      TOWER_NAMES,
+      'radiant',
+      snapshot.radiant.tag,
+      'tower',
+      50,
+    ),
+    buildingEvent(
+      previous.direTowers,
+      state.direTowers,
+      TOWER_NAMES,
+      'dire',
+      snapshot.dire.tag,
+      'tower',
+      50,
+    ),
+  ];
+}
+
+function barracksEvents(
+  previous: EventState,
+  state: EventState,
+  snapshot: MatchSnapshot,
+): (MatchEvent | null)[] {
+  return [
+    buildingEvent(
+      previous.radiantBarracks,
+      state.radiantBarracks,
+      BARRACKS_NAMES,
+      'radiant',
+      snapshot.radiant.tag,
+      'barracks',
+      85,
+    ),
+    buildingEvent(
+      previous.direBarracks,
+      state.direBarracks,
+      BARRACKS_NAMES,
+      'dire',
+      snapshot.dire.tag,
+      'barracks',
+      85,
+    ),
+  ];
+}
+
+/**
+ * A building falls when its bit clears. A `null` on either side means the source
+ * does not report that mask at all, which is not the same as nothing falling.
+ */
+function buildingEvent(
+  before: number | null,
+  after: number | null,
+  names: readonly string[],
+  side: Side,
+  tag: string,
+  kind: 'tower' | 'barracks',
+  priority: number,
+): MatchEvent | null {
+  if (before === null || after === null || before === after) {
+    return null;
+  }
+  const fell = before & ~after;
+  if (fell === 0) {
+    return null;
+  }
+
+  const lost: string[] = [];
+  for (let bit = 0; bit < names.length; bit += 1) {
+    if (fell & (1 << bit)) {
+      lost.push(names[bit] ?? `#${bit}`);
+    }
+  }
+  if (lost.length === 0) {
+    return null;
+  }
+
+  const noun = kind === 'tower' ? 'tower' : 'barracks';
+  return {
+    kind,
+    side,
+    // The front has room for about sixteen glyphs, and `MID MELEE + MID RANGED`
+    // is not one of them. Which lane went is the part worth glancing at; the
+    // back display keeps the detail.
+    short: shortBuilding(tag, lost, kind),
+    long: `${tag} lost ${longBuilding(lost, kind)} ${noun}`,
+    // A double loss in one poll is a bigger deal than a single one.
+    priority: priority + lost.length,
+    sound: true,
+  };
+}
+
+function shortBuilding(
+  tag: string,
+  lost: readonly string[],
+  kind: 'tower' | 'barracks',
+): string {
+  if (kind === 'barracks') {
+    const lanes = [...new Set(lost.map((name) => name.split(' ')[0]))];
+    return lanes.length === 1 ? `${tag} ${lanes[0]} RAX` : `${tag} ${lost.length} RAX`;
+  }
+  return lost.length === 1 ? `${tag} ${lost[0]}` : `${tag} ${lost.length} TOWERS`;
+}
+
+/** Collapses `mid melee + mid ranged` to `mid`, which is what people say. */
+function longBuilding(lost: readonly string[], kind: 'tower' | 'barracks'): string {
+  if (kind === 'barracks') {
+    const lanes = [...new Set(lost.map((name) => name.split(' ')[0]))];
+    return lanes.join(' + ').toLowerCase();
+  }
+  return lost.join(' + ').toLowerCase();
+}
+
+function killEvent(
+  previous: EventState,
+  state: EventState,
+  snapshot: MatchSnapshot,
+): MatchEvent | null {
+  const radiantGained = state.radiantKills - previous.radiantKills;
+  const direGained = state.direKills - previous.direKills;
+  if (radiantGained <= 0 && direGained <= 0) {
+    return null;
+  }
+  const side: Side = radiantGained >= direGained ? 'radiant' : 'dire';
+  const tag = side === 'radiant' ? snapshot.radiant.tag : snapshot.dire.tag;
+  const gained = Math.max(radiantGained, direGained);
+  const score = `${snapshot.radiant.kills}-${snapshot.dire.kills}`;
+
+  return {
+    kind: 'kill',
+    side,
+    short: gained > 1 ? `${tag} +${gained}` : `${tag} KILL`,
+    long: `${tag} ${gained > 1 ? `+${gained} kills` : 'kill'}  ${score}`,
+    priority: 10,
+    sound: false,
+  };
 }

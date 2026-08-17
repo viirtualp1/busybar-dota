@@ -29,16 +29,36 @@ test('nothing live plus a schedule gives the upcoming view', () => {
   assert.equal(frame.scoreText, '2:00:00');
   assert.equal(frame.radiantTag, 'TS');
   assert.equal(frame.direTag, 'FLC');
-  assert.equal(frame.seriesText, 'UB2');
+  // The stage used to sit here as `UB2`; it told nobody anything.
+  assert.equal(frame.seriesText, '');
   assert.equal(frame.clockText, formatStartTime(Date.UTC(2026, 7, 16, 8, 0, 0)));
 });
 
-test('the back line carries the date, stage and series length', () => {
+test('the back line carries the date and series length, not the stage', () => {
   const frame = buildFrame(idleSnapshot(), frameOptions({ nowEpochMs: NOW, schedule: schedule() }));
   assert.match(frame.backSub, /Aug/);
-  assert.match(frame.backSub, /Upper Bracket R2/);
   assert.match(frame.backSub, /BO3/);
+  assert.doesNotMatch(frame.backSub, /Upper Bracket/);
   assert.equal(frame.backHeader, 'Team Spirit | Falcons');
+});
+
+test('a repeated round label is printed once, not on every row', () => {
+  const repeated: Schedule = {
+    next: schedule().next,
+    bracket: [
+      { label: 'UBQ', text: 'IW vs TSpirit', next: true },
+      { label: 'UBQ', text: 'VISION vs BB', next: false },
+      { label: 'UBQ', text: 'Liquid vs Yandex', next: false },
+      { label: 'UBS', text: 'TBD vs TBD', next: false },
+    ],
+  };
+  const frame = buildFrame(
+    idleSnapshot(),
+    frameOptions({ nowEpochMs: NOW, schedule: repeated, maxRows: 5 }),
+  );
+  const labels = frame.backRows.slice(0, 4).map((row) => wideOf(row).label);
+  // The round is stated when it starts and when it changes, and nowhere else.
+  assert.deepEqual(labels, ['UBQ', '', '', 'UBS']);
 });
 
 test('a TBD start shows TBD instead of a countdown to nothing', () => {

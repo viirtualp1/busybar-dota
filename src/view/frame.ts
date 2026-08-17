@@ -1,5 +1,5 @@
 import { radiantFillWidth } from '../bar/layout.js';
-import type { MatchEvent } from '../domain/events.js';
+import type { MatchEvent, MatchEventKind } from '../domain/events.js';
 import type { HeroCatalog } from '../dota/heroes.js';
 import type { SeriesBreak } from '../domain/series.js';
 import type { Schedule } from '../dota/schedule/index.js';
@@ -40,6 +40,8 @@ export type DotaFrame = {
   /** The column rule belongs to two-column layouts only. */
   showDivider: boolean;
   ledColor: string;
+  /** When set, it takes over the front's bottom row for a few seconds. */
+  tickerText: string;
   backHeader: string;
   backSub: string;
   backRows: BackRow[];
@@ -48,7 +50,8 @@ export type DotaFrame = {
 export type FrameOptions = {
   heroes: HeroCatalog;
   maxRows: number;
-  flash: MatchEvent;
+  /** The event currently owning the ticker, if any. */
+  ticker: MatchEvent | null;
   /** Wall-clock time, needed for the countdown. */
   nowEpochMs: number;
   /** `null` when no schedule source is configured or it is unreachable. */
@@ -59,13 +62,38 @@ export type FrameOptions = {
   idleNote: string;
 };
 
-const LED: Partial<Record<NonNullable<MatchEvent>, string>> = {
-  'radiant-kill': COLORS.ledRadiant,
-  'radiant-tower': COLORS.ledRadiant,
-  'dire-kill': COLORS.ledDire,
-  'dire-tower': COLORS.ledDire,
+/**
+ * Buildings and Roshan get their own colours; a kill just tints the bar in the
+ * colour of whoever got it.
+ */
+const LED_BY_KIND: Partial<Record<MatchEventKind, string>> = {
+  roshan: COLORS.ledRoshan,
+  barracks: COLORS.ledBarracks,
   'match-start': COLORS.ledStart,
+  'match-end': COLORS.ledStart,
 };
+
+function ledFor(event: MatchEvent | null): string {
+  if (!event) {
+    return '';
+  }
+  const byKind = LED_BY_KIND[event.kind];
+  if (byKind) {
+    return byKind;
+  }
+  if (event.side === 'radiant') {
+    return COLORS.ledRadiant;
+  }
+  return event.side === 'dire' ? COLORS.ledDire : COLORS.ledStart;
+}
+
+/**
+ * How long each of the hero name and the player name holds a roster row.
+ *
+ * The back display has no room for both, and knowing who is on a hero matters
+ * as much as knowing the hero, so the row alternates rather than choosing.
+ */
+export const ROSTER_ROTATE_MS = 3000;
 
 const emptyRow: BackRow = { kind: 'pair', left: null, right: null };
 
@@ -97,15 +125,20 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
     radiantFill: radiantFillWidth(lead),
     showBands: true,
     showDivider: true,
-    ledColor: (options.flash && LED[options.flash]) || '',
+    ledColor: ledFor(options.ticker),
+    tickerText: options.ticker?.short ?? '',
     // Left name is the left column, right name is the right column — the header
     // is what makes the divider mean something.
     backHeader: `${snapshot.radiant.name} | ${snapshot.dire.name}`,
-    backSub: drafting
-      ? banSummary(snapshot, options)
-      : lead === 0
-        ? `even  ${towerText(snapshot)}`
-        : `${leader} ${leadText}  ${towerText(snapshot)}`,
+    // The ticker owns the sub-line while it runs: an event is worth more than
+    // a net worth figure that is still there three seconds later.
+    backSub:
+      options.ticker?.long ??
+      (drafting
+        ? banSummary(snapshot, options)
+        : lead === 0
+          ? `even  ${towerText(snapshot)}`
+          : `${leader} ${leadText}  ${towerText(snapshot)}`),
     backRows: drafting ? draftRows(snapshot, options) : backRows(snapshot, options),
   };
 }
@@ -121,7 +154,7 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
 function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
   const scheduled = options.schedule?.next ?? null;
   const countdown =
-    scheduled?.startsAtMs != null
+    scheduled?.startsAtMs !== undefined && scheduled.startsAtMs !== null
       ? formatCountdown(scheduled.startsAtMs - options.nowEpochMs)
       : 'BREAK';
 
@@ -141,6 +174,7 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     showBands: false,
     showDivider: false,
     ledColor: '',
+    tickerText: '',
     backHeader: `${current.radiantName} | ${current.direName}`,
     backSub: current.pendingResult
       ? `game ${finishedGame} done, result pending  ${scheduledNote(scheduled)}`
@@ -155,7 +189,7 @@ function scheduledNote(next: Schedule['next']): string {
   if (!next?.startsAtMs) {
     return '';
   }
-  return `next ${formatStartTime(next.startsAtMs)} ${next.stageShort}`.trim();
+  return `next ${formatStartTime(next.startsAtMs)}`;
 }
 
 /**
@@ -182,11 +216,14 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     radiantTag: next.tagA,
     direTag: next.tagB,
     clockText: next.startsAtMs === null ? '' : formatStartTime(next.startsAtMs),
-    seriesText: next.stageShort,
+    // No stage here: `UB2` told nobody anything the back display was not
+    // already spelling out in full.
+    seriesText: '',
     radiantFill: radiantFillWidth(0),
     showBands: false,
     showDivider: false,
     ledColor: '',
+    tickerText: '',
     backHeader: `${next.teamA} | ${next.teamB}`,
     backSub: startLine(next, options),
     backRows: bracketRows(schedule, options.maxRows),
@@ -199,9 +236,6 @@ function startLine(next: NonNullable<Schedule['next']>, options: FrameOptions): 
     parts.push('start TBD');
   } else {
     parts.push(`${formatStartDate(next.startsAtMs)} ${formatStartTime(next.startsAtMs)}`);
-  }
-  if (next.stage) {
-    parts.push(next.stage);
   }
   if (next.bestOf > 0) {
     parts.push(`BO${next.bestOf}`);
@@ -220,13 +254,22 @@ function bracketRows(schedule: Schedule, maxRows: number): BackRow[] {
       ? 0
       : Math.max(0, Math.min(schedule.bracket.length - maxRows, nextIndex - 1));
 
+  // A round label repeated down every row is noise; it only earns its column
+  // when the round actually changes.
+  let previousLabel = start > 0 ? (schedule.bracket[start - 1]?.label ?? '') : '';
   for (let index = 0; index < maxRows; index += 1) {
     const row = schedule.bracket[start + index];
-    rows.push(
-      row
-        ? { kind: 'wide', label: row.label, text: row.text, highlight: row.next }
-        : emptyRow,
-    );
+    if (!row) {
+      rows.push(emptyRow);
+      continue;
+    }
+    rows.push({
+      kind: 'wide',
+      label: row.label === previousLabel ? '' : row.label,
+      text: row.text,
+      highlight: row.next,
+    });
+    previousLabel = row.label;
   }
   return rows;
 }
@@ -311,7 +354,15 @@ function cell(team: TeamState, index: number, options: FrameOptions): BackCell |
   const kda = formatKda(player.kills, player.deaths, player.assists);
   // OpenDota has no per-player scoreboard; fall back to whatever it does give.
   const stats = kda || (player.netWorth !== null ? formatGold(player.netWorth) : '');
-  return { hero: options.heroes.name(player.heroId), stats };
+  // Alternate hero and player. Sources without names (OpenDota) never flip, so
+  // the row does not blink between a hero and an empty cell.
+  const showPlayer =
+    player.name !== '' &&
+    Math.floor(options.nowEpochMs / ROSTER_ROTATE_MS) % 2 === 1;
+  return {
+    hero: showPlayer ? player.name : options.heroes.name(player.heroId),
+    stats,
+  };
 }
 
 function idleFrame(note: string, maxRows: number): DotaFrame {
@@ -326,6 +377,7 @@ function idleFrame(note: string, maxRows: number): DotaFrame {
     showBands: false,
     showDivider: false,
     ledColor: '',
+    tickerText: '',
     backHeader: 'No live match',
     backSub: note,
     backRows: Array.from({ length: maxRows }, () => emptyRow),

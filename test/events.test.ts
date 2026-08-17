@@ -1,70 +1,178 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { detectEvent, initialEventState, stateOf } from '../src/domain/events.js';
+import { EventTicker } from '../src/domain/ticker.js';
 import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types.js';
+
+const ALL_TOWERS = 0b111_1111_1111;
+const ALL_BARRACKS = 0b11_1111;
 
 function snapshot(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
     ...idleSnapshot(),
     live: true,
     matchId: 'm1',
-    radiant: { ...emptyTeam('R', 'R'), kills: 5, towers: 11 },
-    dire: { ...emptyTeam('D', 'D'), kills: 3, towers: 11 },
+    seriesType: 1,
+    radiant: {
+      ...emptyTeam('Radiant', 'RAD'),
+      kills: 5,
+      towers: 11,
+      towerState: ALL_TOWERS,
+      barracksState: ALL_BARRACKS,
+    },
+    dire: {
+      ...emptyTeam('Dire', 'DIR'),
+      kills: 3,
+      towers: 11,
+      towerState: ALL_TOWERS,
+      barracksState: ALL_BARRACKS,
+    },
+    roshanRespawnSec: 0,
     ...overrides,
   };
 }
 
+function withDireTowers(mask: number): MatchSnapshot {
+  const base = snapshot();
+  return { ...base, dire: { ...base.dire, towerState: mask } };
+}
+
 test('the first live poll of a match reports a start', () => {
   const { event } = detectEvent(initialEventState, snapshot());
-  assert.equal(event, 'match-start');
+  assert.equal(event?.kind, 'match-start');
+  assert.equal(event?.sound, true);
 });
 
-test('a kill is attributed to the team that scored it', () => {
+test('a fallen tower is named by lane and tier, not just counted', () => {
   const before = stateOf(snapshot());
-  const radiant = detectEvent(
-    before,
-    snapshot({ radiant: { ...emptyTeam('R', 'R'), kills: 6, towers: 11 } }),
-  );
-  assert.equal(radiant.event, 'radiant-kill');
-  const dire = detectEvent(
-    before,
-    snapshot({ dire: { ...emptyTeam('D', 'D'), kills: 4, towers: 11 } }),
-  );
-  assert.equal(dire.event, 'dire-kill');
+  // Bit 4 is mid tier 2.
+  const { event } = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 4)));
+  assert.equal(event?.kind, 'tower');
+  assert.equal(event?.side, 'dire');
+  assert.match(event.short, /MID T2/);
 });
 
-test('towers outrank kills when both change in one poll', () => {
+test('both tier-4 bits read as T4, since their order is not worth asserting', () => {
+  const before = stateOf(snapshot());
+  const nine = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 9)));
+  const ten = detectEvent(before, withDireTowers(ALL_TOWERS & ~(1 << 10)));
+  assert.match(nine.event!.short, /T4/);
+  assert.match(ten.event!.short, /T4/);
+});
+
+test('two towers at once collapse on the front but stay listed on the back', () => {
   const before = stateOf(snapshot());
   const { event } = detectEvent(
     before,
-    snapshot({
-      radiant: { ...emptyTeam('R', 'R'), kills: 7, towers: 10 },
-      dire: { ...emptyTeam('D', 'D'), kills: 5, towers: 11 },
-    }),
+    withDireTowers(ALL_TOWERS & ~(1 << 0) & ~(1 << 3)),
   );
-  assert.equal(event, 'radiant-tower');
+  // 72px does not fit "TOP T1 + MID T1"; the back display has the room.
+  assert.equal(event!.short, 'DIR 2 TOWERS');
+  assert.match(event!.long, /top t1 \+ mid t1/);
+});
+
+test('both mid racks read as one lane rather than melee plus ranged', () => {
+  const before = stateOf(snapshot());
+  const base = snapshot();
+  const { event } = detectEvent(before, {
+    ...base,
+    dire: { ...base.dire, barracksState: ALL_BARRACKS & ~(1 << 2) & ~(1 << 3) },
+  });
+  assert.equal(event!.short, 'DIR MID RAX');
+  assert.equal(event!.long, 'DIR lost mid barracks');
+});
+
+test('barracks outrank towers, and towers outrank kills', () => {
+  const before = stateOf(snapshot());
+  const base = snapshot();
+  const { event } = detectEvent(before, {
+    ...base,
+    radiant: { ...base.radiant, kills: 9 },
+    dire: {
+      ...base.dire,
+      towerState: ALL_TOWERS & ~(1 << 4),
+      barracksState: ALL_BARRACKS & ~(1 << 2),
+    },
+  });
+  assert.equal(event?.kind, 'barracks');
+});
+
+test('Roshan is detected by the respawn timer jumping up', () => {
+  const before = stateOf(snapshot({ roshanRespawnSec: 0 }));
+  const { event } = detectEvent(before, snapshot({ roshanRespawnSec: 8 * 60 }));
+  assert.equal(event?.kind, 'roshan');
+  assert.equal(event?.sound, true);
+});
+
+test('the Roshan timer ticking down is not a kill', () => {
+  const before = stateOf(snapshot({ roshanRespawnSec: 500 }));
+  const { event } = detectEvent(before, snapshot({ roshanRespawnSec: 480 }));
+  assert.equal(event, null);
+});
+
+test('kills are reported but stay silent', () => {
+  const before = stateOf(snapshot());
+  const base = snapshot();
+  const { event } = detectEvent(before, {
+    ...base,
+    radiant: { ...base.radiant, kills: 6 },
+  });
+  assert.equal(event?.kind, 'kill');
+  assert.equal(event?.sound, false);
+});
+
+test('a source without building masks never invents a fallen tower', () => {
+  const before = stateOf(snapshot());
+  const base = snapshot();
+  const { event } = detectEvent(before, {
+    ...base,
+    dire: { ...base.dire, towerState: null, barracksState: null },
+  });
+  assert.equal(event, null);
 });
 
 test('a new match is a start, not a phantom swing from the old scoreline', () => {
-  const before = stateOf(
-    snapshot({ radiant: { ...emptyTeam('R', 'R'), kills: 40, towers: 2 } }),
-  );
+  const base = snapshot();
+  const before = stateOf({ ...base, radiant: { ...base.radiant, kills: 40 } });
   const { event } = detectEvent(before, snapshot({ matchId: 'm2' }));
-  assert.equal(event, 'match-start');
+  assert.equal(event?.kind, 'match-start');
 });
 
 test('losing the source is a match end, and staying idle is silent', () => {
   const before = stateOf(snapshot());
   const ended = detectEvent(before, { ...snapshot(), live: false });
-  assert.equal(ended.event, 'match-end');
+  assert.equal(ended.event?.kind, 'match-end');
   assert.equal(detectEvent(ended.state, idleSnapshot()).event, null);
 });
 
-test('a source without building state never fakes a tower fall', () => {
-  const withTowers = stateOf(snapshot());
-  const { event } = detectEvent(
-    withTowers,
-    snapshot({ radiant: { ...emptyTeam('R', 'R'), kills: 5, towers: null } }),
-  );
-  assert.equal(event, null);
+test('the ticker holds an event, then gets out of the way', () => {
+  const ticker = new EventTicker(1000);
+  const tower = detectEvent(stateOf(snapshot()), withDireTowers(ALL_TOWERS & ~1)).event;
+  assert.equal(ticker.push(tower, 0), true);
+  assert.equal(ticker.active(500)?.kind, 'tower');
+  assert.equal(ticker.active(1500), null);
+});
+
+test('a kill cannot cut a Roshan line short, but a rax can', () => {
+  const ticker = new EventTicker(1000);
+  const roshan = detectEvent(
+    stateOf(snapshot({ roshanRespawnSec: 0 })),
+    snapshot({ roshanRespawnSec: 500 }),
+  ).event;
+  ticker.push(roshan, 0);
+
+  const base = snapshot();
+  const kill = detectEvent(stateOf(base), {
+    ...base,
+    radiant: { ...base.radiant, kills: 6 },
+  }).event;
+  assert.equal(ticker.push(kill, 100), false);
+  assert.equal(ticker.active(200)?.kind, 'roshan');
+
+  const rax = detectEvent(stateOf(base), {
+    ...base,
+    dire: { ...base.dire, barracksState: ALL_BARRACKS & ~(1 << 2) },
+  }).event;
+  assert.equal(ticker.push(rax, 200), true);
+  assert.equal(ticker.active(300)?.kind, 'barracks');
 });
