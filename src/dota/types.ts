@@ -39,7 +39,7 @@ export type MatchSnapshot = {
   spectators: number;
   delaySec: number;
   roshanRespawnSec: number | null;
-  source: 'steam' | 'opendota' | 'demo';
+  source: 'steam' | 'demo';
 };
 
 export function emptyTeam(name: string, tag: string): TeamState {
@@ -82,7 +82,7 @@ export function idleSnapshot(): MatchSnapshot {
     spectators: 0,
     delaySec: 0,
     roshanRespawnSec: null,
-    source: 'opendota',
+    source: 'steam',
   };
 }
 

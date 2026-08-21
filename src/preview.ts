@@ -33,7 +33,7 @@ const idleShot = argv.includes('--idle');
 const eventShot = argv.includes('--event');
 const resultShot = argv.includes('--result');
 
-const heroes = new HeroCatalog();
+const heroes = new HeroCatalog(config.steamApiKey);
 if (!(await heroes.load())) {
   console.warn('Hero names unavailable — the shot will show hero ids');
 }

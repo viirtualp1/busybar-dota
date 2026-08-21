@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ScheduleKind } from './dota/schedule/index';
+import { MISSING_KEY } from './dota/source';
 import type { TickerStyle } from './view/ticker-text';
 
 export type Config = {
@@ -141,10 +142,7 @@ export function loadConfig(
     warnings,
   );
   if (!steamApiKey && !demo) {
-    warnings.push(
-      'No STEAM_API_KEY: falling back to OpenDota /live, which has no per-player stats. ' +
-        'Get a free key at https://steamcommunity.com/dev/apikey',
-    );
+    warnings.push(MISSING_KEY);
   }
 
   return {

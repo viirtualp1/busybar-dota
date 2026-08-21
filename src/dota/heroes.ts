@@ -1,4 +1,4 @@
-const HEROES_URL = 'https://api.opendota.com/api/heroes';
+const HEROES_URL = 'https://api.steampowered.com/IEconDOTA2_570/GetHeroes/v1/';
 
 const HERO_PREFIX = 'npc_dota_hero_';
 
@@ -36,31 +36,39 @@ const SHORT_NAMES: Record<string, string> = {
   'Wraith King': 'WK',
 };
 
-type OpenDotaHero = { id?: unknown; name?: unknown; localized_name?: unknown };
+type SteamHero = { id?: unknown; name?: unknown; localized_name?: unknown };
 
 export class HeroCatalog {
   private names = new Map<number, string>();
   private slugs = new Map<number, string>();
   private loaded = false;
 
-  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(
+    private readonly apiKey = '',
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
 
   get ready() {
     return this.loaded;
   }
 
   async load(signal?: AbortSignal): Promise<boolean> {
+    if (!this.apiKey) {
+      return false;
+    }
+
     try {
-      const response = await this.fetchImpl(HEROES_URL, signal ? { signal } : {});
+      const url = new URL(HEROES_URL);
+      url.searchParams.set('key', this.apiKey);
+      url.searchParams.set('language', 'en');
+      const response = await this.fetchImpl(url, signal ? { signal } : {});
       if (!response.ok) {
         return false;
       }
       const body: unknown = await response.json();
-      if (!Array.isArray(body)) {
-        return false;
-      }
+      const heroes = readHeroes(body);
 
-      for (const entry of body as OpenDotaHero[]) {
+      for (const entry of heroes) {
         const id = Number(entry.id);
         const name = typeof entry.localized_name === 'string' ? entry.localized_name : '';
         if (Number.isFinite(id) && name) {
@@ -89,4 +97,17 @@ export class HeroCatalog {
   slug(heroId: number) {
     return this.slugs.get(heroId) ?? '';
   }
+}
+
+function readHeroes(body: unknown): SteamHero[] {
+  if (typeof body !== 'object' || body === null) {
+    return [];
+  }
+  const result = (body as { result?: unknown }).result;
+  if (typeof result !== 'object' || result === null) {
+    return [];
+  }
+  const heroes = (result as { heroes?: unknown }).heroes;
+
+  return Array.isArray(heroes) ? (heroes as SteamHero[]) : [];
 }

@@ -11,15 +11,21 @@ import { createSource } from './dota/source';
 loadEnvFile();
 const { config, warnings } = loadConfig();
 
-const source = createSource(
-  {
-    steamApiKey: config.steamApiKey,
-    leagueId: config.leagueId,
-    matchId: config.matchId,
-    timeoutMs: config.requestTimeoutMs,
-  },
-  config.demo,
-);
+let source;
+try {
+  source = createSource(
+    {
+      steamApiKey: config.steamApiKey,
+      leagueId: config.leagueId,
+      matchId: config.matchId,
+      timeoutMs: config.requestTimeoutMs,
+    },
+    config.demo,
+  );
+} catch (error) {
+  console.error(errorMessage(error));
+  process.exit(1);
+}
 
 const schedule = createScheduleSource({
   kind: config.scheduleKind,
@@ -53,7 +59,7 @@ const app = new App({
   results: config.demo
     ? new DemoResultLookup()
     : new MatchResultLookup(config.requestTimeoutMs),
-  heroes: new HeroCatalog(),
+  heroes: new HeroCatalog(config.steamApiKey),
   display: new BarDisplay(bar, config.drawPriority),
 });
 

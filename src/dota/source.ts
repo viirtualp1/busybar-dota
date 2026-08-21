@@ -1,4 +1,3 @@
-import { OpenDotaSource } from './opendota';
 import { SteamSource } from './steam';
 import {
   deriveTag,
@@ -21,27 +20,26 @@ export type SourceOptions = {
   timeoutMs: number;
 };
 
+export const MISSING_KEY =
+  'STEAM_API_KEY is required — get a free key at https://steamcommunity.com/dev/apikey';
+
 export function createSource(options: SourceOptions, demo: boolean): MatchSource {
   if (demo) {
     return new DemoSource();
   }
 
-  if (options.steamApiKey) {
-    const steam = new SteamSource({
-      apiKey: options.steamApiKey,
-      leagueId: options.leagueId,
-      matchId: options.matchId,
-      timeoutMs: options.timeoutMs,
-    });
-    return { label: 'Steam GetLiveLeagueGames', poll: () => steam.poll() };
+  if (!options.steamApiKey) {
+    throw new Error(MISSING_KEY);
   }
-  const openDota = new OpenDotaSource({
+
+  const steam = new SteamSource({
+    apiKey: options.steamApiKey,
     leagueId: options.leagueId,
     matchId: options.matchId,
     timeoutMs: options.timeoutMs,
   });
 
-  return { label: 'OpenDota /live (no per-player stats)', poll: () => openDota.poll() };
+  return { label: 'Steam GetLiveLeagueGames', poll: () => steam.poll() };
 }
 
 const DEMO_HEROES = {

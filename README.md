@@ -46,16 +46,11 @@ npm run dev
 Leave the Bar on a BUSY or CUSTOM session, otherwise its own session outranks
 the draws (see `DRAW_PRIORITY`).
 
-A free [Steam API key](https://steamcommunity.com/dev/apikey) is optional but
-worth it:
-
-|                  | Steam `GetLiveLeagueGames` | OpenDota `/live` |
-| ---------------- | -------------------------- | ---------------- |
-| Key              | free key required          | none             |
-| Per-player K/D/A | yes                        | no               |
-| Picks and bans   | yes                        | no               |
-| Nicknames        | yes                        | sometimes        |
-| Series score     | yes                        | no               |
+`STEAM_API_KEY` is required — a free key from
+[steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey). Live
+matches come from Steam `GetLiveLeagueGames` and hero names from
+`IEconDOTA2_570/GetHeroes`. Two things Valve no longer serves are read from
+OpenDota, keyless: the winner of a finished game and the name of a league.
 
 Without `LEAGUE_ID` or `MATCH_ID` it follows whichever pro game has the most
 spectators.
@@ -115,7 +110,7 @@ instead. The query has never run against a live token — check it with
 | `BUSY_ADDR`          | `10.0.4.20`     | USB address; Bar LAN IP for Wi-Fi; `https://api.busy.app` for cloud |
 | `BUSY_TOKEN`         | —               | cloud only                                                          |
 | `BUSY_HTTP_PASSWORD` | —               | Wi-Fi only (Bar web UI → Network → HTTP API access)                 |
-| `STEAM_API_KEY`      | —               | unlocks per-player stats, picks and bans                            |
+| `STEAM_API_KEY`      | —               | required (free)                                                     |
 | `LEAGUE_ID`          | —               | pin to one tournament                                               |
 | `MATCH_ID`           | —               | pin to one game                                                     |
 | `SOUNDS`             | `1`             | `0` mutes event sounds                                              |
