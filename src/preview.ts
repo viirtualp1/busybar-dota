@@ -5,6 +5,8 @@ import { backElements, frontElements } from './bar/elements';
 import { BACK } from './bar/layout';
 import { loadConfig, loadEnvFile } from './config';
 import { HeroCatalog } from './dota/heroes';
+import { LeagueCatalog } from './dota/leagues';
+import { PortraitStore } from './dota/portraits';
 import { createScheduleSource, DemoScheduleSource } from './dota/schedule/index';
 import { createSource, DemoSource } from './dota/source';
 import { detectEvent, stateOf, type MatchEvent } from './domain/events';
@@ -24,8 +26,10 @@ const { config } = loadConfig();
 const argv = process.argv.slice(2);
 const live = argv.includes('--live');
 const draftOnly = argv.includes('--draft');
+const banShot = argv.includes('--bans');
 const upcoming = argv.includes('--upcoming');
 const breakOnly = argv.includes('--break');
+const idleShot = argv.includes('--idle');
 const eventShot = argv.includes('--event');
 const resultShot = argv.includes('--result');
 
@@ -34,29 +38,46 @@ if (!(await heroes.load())) {
   console.warn('Hero names unavailable — the shot will show hero ids');
 }
 
+const leagues = new LeagueCatalog();
+await leagues.load(config.leagueId, config.requestTimeoutMs);
+
 const snapshot = await capture();
+// Nothing is uploaded here: the store keeps the bitmaps and the raster draws them.
+const portraits = new PortraitStore(heroes, () => Promise.resolve());
+if (config.banPortraits) {
+  await portraits.prepare([...snapshot.radiant.draft.bans, ...snapshot.dire.draft.bans]);
+}
+
 const frame = buildFrame(snapshot, {
   heroes,
   maxRows: BACK.maxRows,
   ticker: await captureEvent(),
   nowEpochMs: Date.now(),
+  portraits: portraits.ready,
+  leagueName: leagues.name,
 
   schedule:
-    upcoming || breakOnly || resultShot || !snapshot.live
+    !idleShot && (upcoming || breakOnly || resultShot || !snapshot.live)
       ? await captureSchedule()
       : null,
-  seriesBreak: breakOnly || resultShot ? demoBreak() : null,
+  seriesBreak: !idleShot && (breakOnly || resultShot) ? demoBreak() : null,
   idleNote: 'nothing live right now',
   tickerStyle: config.tickerStyle,
   tickerChars: config.tickerChars,
 });
 
 const front = renderFront(frontElements(frame)).scale(SCALE);
-const back = renderBack(backElements(frame)).scale(SCALE);
+const back = renderBack(backElements(frame), (path) =>
+  portraits.image(heroIdOf(path)),
+).scale(SCALE);
 write('preview-front.png', front.toPng());
 write('preview-back.png', back.toPng());
 
 printAscii(frame);
+
+function heroIdOf(path: string) {
+  return Number(path.replace(/\D+/g, ''));
+}
 
 async function captureEvent(): Promise<{ event: MatchEvent; elapsedMs: number } | null> {
   if (!eventShot) {
@@ -90,7 +111,7 @@ function demoBreak(): SeriesBreak {
 }
 
 async function capture(): Promise<MatchSnapshot> {
-  if (upcoming || breakOnly || resultShot) {
+  if (upcoming || breakOnly || resultShot || idleShot) {
     return idleSnapshot();
   }
 
@@ -116,7 +137,7 @@ async function capture(): Promise<MatchSnapshot> {
     }
   }
 
-  const seekMs = draftOnly ? 2000 : eventShot ? EVENT_SEEK_MS : 20_000;
+  const seekMs = banShot ? 2950 : draftOnly ? 2000 : eventShot ? EVENT_SEEK_MS : 20_000;
   const demo = new DemoSource(Date.now() - seekMs);
 
   return (await demo.poll()) ?? idleSnapshot();

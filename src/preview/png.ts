@@ -1,4 +1,4 @@
-import { deflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -82,6 +82,121 @@ export function parseColor(value: string): Rgba {
     b: Number.parseInt(hex.slice(4, 6), 16),
     a: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) : 255,
   };
+}
+
+export class PngError extends Error {}
+
+// Enough of the format to read what Valve serves: 8-bit RGB or RGBA, not interlaced.
+export function decodePng(file: Buffer): Bitmap {
+  if (!file.subarray(0, 8).equals(SIGNATURE)) {
+    throw new PngError('not a PNG');
+  }
+
+  let header: { width: number; height: number; channels: number } | null = null;
+  const parts: Buffer[] = [];
+  let offset = 8;
+  while (offset + 8 <= file.length) {
+    const length = file.readUInt32BE(offset);
+    const type = file.toString('ascii', offset + 4, offset + 8);
+    const payload = file.subarray(offset + 8, offset + 8 + length);
+    offset += 12 + length;
+
+    if (type === 'IHDR') {
+      header = readHeader(payload);
+    } else if (type === 'IDAT') {
+      parts.push(payload);
+    } else if (type === 'IEND') {
+      break;
+    }
+  }
+
+  if (!header) {
+    throw new PngError('PNG has no header');
+  }
+
+  return unfilter(inflateSync(Buffer.concat(parts)), header);
+}
+
+function readHeader(payload: Buffer) {
+  const depth = payload[8];
+  const colorType = payload[9];
+  const interlace = payload[12];
+  if (depth !== 8 || (colorType !== 2 && colorType !== 6) || interlace !== 0) {
+    throw new PngError(`unsupported PNG (depth ${depth}, colour ${colorType})`);
+  }
+
+  return {
+    width: payload.readUInt32BE(0),
+    height: payload.readUInt32BE(4),
+    channels: colorType === 6 ? 4 : 3,
+  };
+}
+
+function unfilter(
+  raw: Buffer,
+  header: { width: number; height: number; channels: number },
+): Bitmap {
+  const { width, height, channels } = header;
+  const stride = width * channels;
+  const bitmap = new Bitmap(width, height, { r: 0, g: 0, b: 0, a: 0 });
+  const line = Buffer.alloc(stride);
+  const previous = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y += 1) {
+    const start = y * (stride + 1);
+    const filter = raw[start];
+    raw.copy(line, 0, start + 1, start + 1 + stride);
+
+    for (let index = 0; index < stride; index += 1) {
+      const left = index >= channels ? (line[index - channels] ?? 0) : 0;
+      const up = previous[index] ?? 0;
+      const upLeft = index >= channels ? (previous[index - channels] ?? 0) : 0;
+      line[index] =
+        (((line[index] ?? 0) + predictor(filter, left, up, upLeft)) & 0xff) >>> 0;
+    }
+
+    // Written straight into the buffer: `set` would composite alpha away here.
+    for (let x = 0; x < width; x += 1) {
+      const at = x * channels;
+      const pixel = (y * width + x) * 4;
+      bitmap.data[pixel] = line[at] ?? 0;
+      bitmap.data[pixel + 1] = line[at + 1] ?? 0;
+      bitmap.data[pixel + 2] = line[at + 2] ?? 0;
+      bitmap.data[pixel + 3] = channels === 4 ? (line[at + 3] ?? 0) : 255;
+    }
+    line.copy(previous);
+  }
+
+  return bitmap;
+}
+
+function predictor(filter: number | undefined, left: number, up: number, upLeft: number) {
+  if (filter === 1) {
+    return left;
+  }
+  if (filter === 2) {
+    return up;
+  }
+  if (filter === 3) {
+    return Math.floor((left + up) / 2);
+  }
+  if (filter === 4) {
+    return paeth(left, up, upLeft);
+  }
+
+  return 0;
+}
+
+function paeth(left: number, up: number, upLeft: number) {
+  const estimate = left + up - upLeft;
+  const dLeft = Math.abs(estimate - left);
+  const dUp = Math.abs(estimate - up);
+  const dUpLeft = Math.abs(estimate - upLeft);
+  if (dLeft <= dUp && dLeft <= dUpLeft) {
+    return left;
+  }
+
+  return dUp <= dUpLeft ? up : upLeft;
 }
 
 function encodePng(width: number, height: number, rgba: Uint8Array): Buffer {

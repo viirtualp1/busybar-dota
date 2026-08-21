@@ -24,6 +24,7 @@ export type Config = {
   scheduleKind: ScheduleKind;
   scheduleFile: string;
   stratzToken: string;
+  banPortraits: boolean;
 };
 
 export type LoadedConfig = {
@@ -178,6 +179,7 @@ export function loadConfig(
       scheduleKind,
       scheduleFile,
       stratzToken,
+      banPortraits: read('BAN_PORTRAITS') !== '0',
     },
   };
 }

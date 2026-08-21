@@ -10,6 +10,7 @@ export const COLORS = {
   backText: '#E6E6E6FF',
   backDivider: '#5A5A5AFF',
   clock: '#D8DCE0FF',
+  roshan: '#B36BFFFF',
   ledRadiant: '#3FBF5FFF',
   ledDire: '#E14B3AFF',
   ledStart: '#FFFFFFFF',

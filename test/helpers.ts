@@ -21,6 +21,8 @@ export function frameOptions(overrides: Partial<FrameOptions> = {}): FrameOption
     idleNote: '',
     tickerStyle: 'page',
     tickerChars: FRONT_LINE_CHARS,
+    portraits: new Set<number>(),
+    leagueName: '',
     ...overrides,
   };
 }

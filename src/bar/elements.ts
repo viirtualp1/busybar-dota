@@ -1,4 +1,5 @@
-import type { RectangleElement, TextElement } from '@busy-app/busy-lib';
+import type { ImageElement, RectangleElement, TextElement } from '@busy-app/busy-lib';
+import { PORTRAIT_SIZE, portraitPath } from '../dota/portraits';
 import { COLORS } from '../view/colors';
 import type { DotaFrame } from '../view/frame';
 import { BACK, clipToWidth, FONT_WIDTH, FRONT, rowY } from './layout';
@@ -8,6 +9,11 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
 
   const ticking = frame.tickerText.length > 0 && frame.finalTags === null;
   const bottomText = frame.tickerText;
+
+  // The bottom middle is the only slot left on 72px, so a live Roshan timer takes
+  // it from the series score, and an event takes the whole row from both.
+  const centreText = frame.roshanText || frame.seriesText;
+  const centreColor = frame.roshanText ? COLORS.roshan : COLORS.muted;
 
   return [
     bandRect(
@@ -75,11 +81,9 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
     {
       id: 'series',
       type: 'text',
-      text: ticking
-        ? ' '
-        : clipToWidth(frame.seriesText || ' ', FRONT.seriesWidth, 'tiny'),
+      text: ticking ? ' ' : clipToWidth(centreText || ' ', FRONT.seriesWidth, 'tiny'),
       font: 'tiny',
-      color: !ticking && frame.seriesText ? COLORS.muted : COLORS.transparent,
+      color: !ticking && centreText ? centreColor : COLORS.transparent,
       display: 'front',
 
       align: 'top_mid',
@@ -219,8 +223,10 @@ function bandRect(id: string, x: number, width: number, color: string): Rectangl
   };
 }
 
-export function backElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
-  const elements: Array<TextElement | RectangleElement> = [
+export type BackElement = TextElement | RectangleElement | ImageElement;
+
+export function backElements(frame: DotaFrame): BackElement[] {
+  const elements: BackElement[] = [
     {
       id: 'back-header',
       type: 'text',
@@ -302,7 +308,36 @@ export function backElements(frame: DotaFrame): Array<TextElement | RectangleEle
     );
   }
 
+  elements.push(...banElements(frame));
+
   return elements;
+}
+
+function banElements(frame: DotaFrame): BackElement[] {
+  const grid = frame.banGrid;
+  if (!grid) {
+    return [];
+  }
+
+  return [
+    ...banRow('ban-r', grid.radiant, BACK.banTopY),
+    ...banRow('ban-d', grid.dire, BACK.banTopY + BACK.banRowStep),
+  ];
+}
+
+function banRow(id: string, heroIds: readonly number[], y: number): BackElement[] {
+  return heroIds.slice(0, BACK.bansPerRow).map((heroId, index) => ({
+    id: `${id}${index}`,
+    type: 'image',
+    path: portraitPath(heroId),
+    opacity: 100,
+    display: 'back',
+    align: 'top_left',
+    // An image is drawn at its own size, so the asset is already PORTRAIT_SIZE square.
+    x: BACK.banLeftX + index * (PORTRAIT_SIZE + BACK.banGap),
+    y,
+    timeout: 0,
+  }));
 }
 
 function columnElements(

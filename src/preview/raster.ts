@@ -1,9 +1,12 @@
-import type { RectangleElement, TextElement } from '@busy-app/busy-lib';
+import type { ImageElement, RectangleElement, TextElement } from '@busy-app/busy-lib';
 import { BACK, FRONT } from '../bar/layout';
 import { GLYPH_HEIGHT, GLYPH_WIDTH, glyph, textWidth } from './font';
 import { Bitmap, parseColor, type Rgba } from './png';
 
-export type AnyElement = TextElement | RectangleElement;
+export type AnyElement = TextElement | RectangleElement | ImageElement;
+
+// Images live in the device's assets, so the preview is handed the same bitmaps by path.
+export type ImageLookup = (path: string) => Bitmap | null;
 
 const OFF_PIXEL: Rgba = { r: 10, g: 10, b: 12, a: 255 };
 
@@ -11,8 +14,8 @@ export function renderFront(elements: AnyElement[]): Bitmap {
   return render(elements, 'front', FRONT.width, FRONT.height, false);
 }
 
-export function renderBack(elements: AnyElement[]): Bitmap {
-  return render(elements, 'back', BACK.width, BACK.height, true);
+export function renderBack(elements: AnyElement[], images?: ImageLookup): Bitmap {
+  return render(elements, 'back', BACK.width, BACK.height, true, images);
 }
 
 const BACK_SHADES = 16;
@@ -23,6 +26,7 @@ function render(
   width: number,
   height: number,
   greyscale: boolean,
+  images?: ImageLookup,
 ): Bitmap {
   const bitmap = new Bitmap(width, height, shade(OFF_PIXEL, greyscale));
 
@@ -35,10 +39,39 @@ function render(
       drawRectangle(bitmap, element, greyscale);
     } else if (element.type === 'text') {
       drawText(bitmap, element, greyscale);
+    } else if (element.type === 'image' && images) {
+      drawImage(bitmap, element, images);
     }
   }
 
   return bitmap;
+}
+
+function drawImage(bitmap: Bitmap, element: ImageElement, images: ImageLookup) {
+  const path = 'path' in element ? element.path : '';
+  const source = path ? images(path) : null;
+  if (!source) {
+    return;
+  }
+
+  const { x, y } = anchor(
+    element.align,
+    element.x,
+    element.y,
+    source.width,
+    source.height,
+  );
+  for (let row = 0; row < source.height; row += 1) {
+    for (let column = 0; column < source.width; column += 1) {
+      const at = (row * source.width + column) * 4;
+      bitmap.set(x + column, y + row, {
+        r: source.data[at] ?? 0,
+        g: source.data[at + 1] ?? 0,
+        b: source.data[at + 2] ?? 0,
+        a: 255,
+      });
+    }
+  }
 }
 
 function toBackShade(color: Rgba): Rgba {

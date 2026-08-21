@@ -6,6 +6,7 @@ import {
 } from './ticker-text';
 import type { MatchEvent, MatchEventKind } from '../domain/events';
 import type { HeroCatalog } from '../dota/heroes';
+import { shortLeagueName } from '../dota/leagues';
 import {
   isSeriesOver,
   isShowingResult,
@@ -47,10 +48,12 @@ export type DotaFrame = {
   leadText: string;
   leadSide: 'radiant' | 'dire' | null;
   tickerText: string;
+  roshanText: string;
   finalTags: { radiant: string; dire: string; winner: 'radiant' | 'dire' | null } | null;
   backHeader: string;
   backSub: string;
   backRows: BackRow[];
+  banGrid: { radiant: number[]; dire: number[] } | null;
 };
 
 export type FrameOptions = {
@@ -63,6 +66,9 @@ export type FrameOptions = {
   idleNote: string;
   tickerStyle: TickerStyle;
   tickerChars: number;
+  leagueName: string;
+  // Hero ids whose ban portrait is already on the device; empty means text bans.
+  portraits: ReadonlySet<number>;
 };
 
 const LED_BY_KIND: Partial<Record<MatchEventKind, string>> = {
@@ -94,6 +100,8 @@ const emptyRow: BackRow = { kind: 'pair', left: null, right: null };
 
 export const FRONT_LINE_CHARS = fittingChars(FRONT.width - 2, FONT_WIDTH.tiny);
 
+export const BOLD_LINE_CHARS = fittingChars(FRONT.width, FONT_WIDTH.bold);
+
 function eventLine(options: FrameOptions) {
   if (!options.ticker) {
     return '';
@@ -119,13 +127,15 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
 
     return options.schedule?.next
       ? upcomingFrame(options.schedule, options)
-      : idleFrame(options.idleNote, options.maxRows);
+      : idleFrame(options.idleNote, options);
   }
 
   const lead = snapshot.netWorthLead;
   const leadText = lead === 0 ? 'even' : `${lead > 0 ? '+' : '-'}${formatGold(lead)}`;
   const leader = lead > 0 ? snapshot.radiant.tag : snapshot.dire.tag;
   const drafting = isDrafting(snapshot);
+  const roshan = drafting ? '' : roshanText(snapshot.roshanRespawnSec);
+  const bans = banGrid(snapshot, options);
 
   return {
     mode: drafting ? 'draft' : 'live',
@@ -136,21 +146,62 @@ export function buildFrame(snapshot: MatchSnapshot, options: FrameOptions): Dota
     seriesText: seriesText(snapshot),
     radiantFill: radiantFillWidth(lead),
     showBands: true,
-    showDivider: true,
+    showDivider: bans === null,
     ledColor: ledFor(options.ticker?.event ?? null),
     ...leadFields(lead),
     tickerText: eventLine(options),
+    roshanText: roshan,
     finalTags: null,
     backHeader: `${snapshot.radiant.name} | ${snapshot.dire.name}`,
     backSub:
       options.ticker?.event.text ||
       (drafting
         ? banSummary(snapshot, options)
-        : lead === 0
-          ? `even  ${towerText(snapshot)}`
-          : `${leader} ${leadText}  ${towerText(snapshot)}`),
-    backRows: drafting ? draftRows(snapshot, options) : backRows(snapshot, options),
+        : [lead === 0 ? 'even' : `${leader} ${leadText}`, towerText(snapshot), roshan]
+            .filter(Boolean)
+            .join('  ')),
+    backRows: bans
+      ? Array.from({ length: options.maxRows }, () => emptyRow)
+      : drafting
+        ? draftRows(snapshot, options)
+        : backRows(snapshot, options),
+    banGrid: bans,
   };
+}
+
+const ROSHAN_LABEL = 'R';
+
+// Five glyphs at most: the bottom row also holds the clock and the gold lead, and
+// nobody needs seconds while Roshan is still ten minutes out.
+function roshanText(respawnSec: number | null) {
+  if (respawnSec === null || respawnSec <= 0) {
+    return '';
+  }
+
+  if (respawnSec >= 600) {
+    return `${ROSHAN_LABEL}${Math.round(respawnSec / 60)}m`;
+  }
+
+  return `${ROSHAN_LABEL}${formatClock(respawnSec)}`;
+}
+
+// Portraits replace the pick list only once both drafts are full: before that the
+// names are the thing being watched, and after it the bans are all that is left.
+function banGrid(snapshot: MatchSnapshot, options: FrameOptions) {
+  if (!isDrafting(snapshot)) {
+    return null;
+  }
+  const { radiant, dire } = snapshot;
+  if (radiant.draft.picks.length < DRAFT_SLOTS || dire.draft.picks.length < DRAFT_SLOTS) {
+    return null;
+  }
+
+  const bans = [...radiant.draft.bans, ...dire.draft.bans];
+  if (bans.length === 0 || !bans.every((heroId) => options.portraits.has(heroId))) {
+    return null;
+  }
+
+  return { radiant: [...radiant.draft.bans], dire: [...dire.draft.bans] };
 }
 
 export function matchupLine(
@@ -184,6 +235,7 @@ function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
     leadText: '',
     leadSide: null,
     tickerText: scheduled ? `next ${scheduled.tagA} vs ${scheduled.tagB}` : '',
+    roshanText: '',
     finalTags: {
       radiant: current.radiantTag,
       dire: current.direTag,
@@ -192,6 +244,7 @@ function resultFrame(current: SeriesBreak, options: FrameOptions): DotaFrame {
     backHeader: `${current.radiantName} | ${current.direName}`,
     backSub: `${resultText(current)}. Series ${series}`,
     backRows: scheduleRows(options),
+    banGrid: null,
   };
 }
 
@@ -226,6 +279,7 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     leadText: '',
     leadSide: null,
     finalTags: null,
+    roshanText: '',
     tickerText: matchupLine(
       {
         aName: current.radiantName,
@@ -239,6 +293,7 @@ function seriesBreakFrame(current: SeriesBreak, options: FrameOptions): DotaFram
     backHeader: `${current.radiantName} | ${current.direName}`,
     backSub: `series ${series}  game ${current.nextGame} next  ${scheduledNote(scheduled)}`,
     backRows: scheduleRows(options),
+    banGrid: null,
   };
 }
 
@@ -261,7 +316,7 @@ function scheduledNote(next: Schedule['next']) {
 function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
   const next = schedule.next;
   if (!next) {
-    return idleFrame(options.idleNote, options.maxRows);
+    return idleFrame(options.idleNote, options);
   }
 
   return {
@@ -278,6 +333,7 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     leadText: '',
     leadSide: null,
     finalTags: null,
+    roshanText: '',
     tickerText: matchupLine(
       { aName: next.teamA, bName: next.teamB, aTag: next.tagA, bTag: next.tagB },
       'VS',
@@ -286,6 +342,7 @@ function upcomingFrame(schedule: Schedule, options: FrameOptions): DotaFrame {
     backHeader: `${next.teamA} | ${next.teamB}`,
     backSub: startLine(next, options),
     backRows: scheduleRows(options),
+    banGrid: null,
   };
 }
 
@@ -426,20 +483,24 @@ function cell(team: TeamState, index: number, options: FrameOptions): BackCell |
     return null;
   }
   const kda = formatKda(player.kills, player.deaths, player.assists);
+  const gold = player.netWorth === null ? '' : formatGold(player.netWorth);
+  const flipped = Math.floor(options.nowEpochMs / ROSTER_ROTATE_MS) % 2 === 1;
 
-  const stats = kda || (player.netWorth !== null ? formatGold(player.netWorth) : '');
-  const showPlayer =
-    player.name !== '' && Math.floor(options.nowEpochMs / ROSTER_ROTATE_MS) % 2 === 1;
   return {
-    hero: showPlayer ? player.name : options.heroes.name(player.heroId),
-    stats,
+    hero:
+      flipped && player.name !== '' ? player.name : options.heroes.name(player.heroId),
+    stats: (flipped ? gold || kda : kda || gold) || '',
   };
 }
 
-function idleFrame(note: string, maxRows: number): DotaFrame {
+export const IDLE_TITLE = 'DOTA';
+
+function idleFrame(note: string, options: FrameOptions): DotaFrame {
+  const league = options.leagueName;
+
   return {
     mode: 'idle',
-    scoreText: 'DOTA',
+    scoreText: shortLeagueName(league, BOLD_LINE_CHARS) || IDLE_TITLE,
     radiantTag: '',
     direTag: '',
     clockText: '',
@@ -451,9 +512,13 @@ function idleFrame(note: string, maxRows: number): DotaFrame {
     leadText: '',
     leadSide: null,
     finalTags: null,
-    tickerText: '',
-    backHeader: 'No live match',
+    // The bottom row takes the full name only when it fits whole: the big row
+    // already carries the short form, and a name split across pages reads badly.
+    tickerText: league.length <= options.tickerChars ? league : '',
+    roshanText: '',
+    backHeader: league || 'No live match',
     backSub: note,
-    backRows: Array.from({ length: maxRows }, () => emptyRow),
+    backRows: Array.from({ length: options.maxRows }, () => emptyRow),
+    banGrid: null,
   };
 }

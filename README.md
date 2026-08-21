@@ -1,112 +1,41 @@
 # busybar-dota
 
-Live Dota 2 pro matches on a [BUSY Bar](https://busy.app/). Built for The
-International, works for any pro game.
+Live Dota 2 pro matches on a [BUSY Bar](https://busy.app/).
 
-## What you get
+## What it shows
 
-**Front — the front display _is_ the net worth bar**
+**Front (72×16)** — the display itself is the net worth bar: Radiant green from
+the left, Dire red from the right.
 
-The 72 pixels are split between the two teams **by net worth, not by the kill
-score** — Radiant green from the left, Dire red from the right, kills in bold on
-top. So a 1-1 game with a 3k gold lead shows a green-heavy bar, and that is the
-point: you read who is actually winning from across the room without reading a
-single number.
+- Kill score in the middle, team tags in the corners
+- Game clock bottom left, series score in the middle, gold lead bottom right
+- Roshan countdown replaces the series score while he is dead — `R6:00`
+- Tower, barracks and Roshan events take the bottom row for a few seconds, with
+  an LED flash and a sound. Kills are silent
+- Lines too long for the row are shown in chunks, 2.2s each
 
-- Kill score, big and centred, with the series score directly beneath it
-- Team tags in their side's colour
-- Game clock (negative during the pre-horn countdown, like the game itself)
-- **Who is ahead on gold, bottom right** — `+9.6k`, coloured green or red for
-  the side that is ahead. No team tag: it would collide with the centred series
-  score, and colour is what the front panel is for. Blank under 500 gold, since
-  a number that flips teams every poll is worse than no number
-- **Event ticker**: when a tower, barracks or Roshan goes down, the bottom row
-  hands itself over — `FLC lost mid tier 2 tower`, `Roshan killed, respawns in
-9 min` — with an LED flash and a sound, then gives the clock back. Anything
-  too long to fit **scrolls** rather than being abbreviated: `FAL MID RAX` saved
-  pixels and lost the meaning. Kills appear silently, because there are dozens
-  of them and one chirp each is a machine gun.
+**Back (160×80)**
 
-**Long lines page, they do not scroll**
+- Team names, gold lead, standing towers and the Roshan countdown
+- Five rows a side: hero and K/D/A, switching to player nickname and net worth
+  every three seconds
+- **During the draft** the five slots fill in with heroes as the picks land.
+  Once both drafts are full the bans replace them as a grid of hero portraits
 
-Nothing is abbreviated any more — `FAL MID RAX` saved pixels and lost the
-meaning — so anything past seventeen glyphs has to be shown over time. It is
-broken on word boundaries and each chunk holds still for 2.2 seconds.
+**Between games** — countdown to the next match, the matchup, and the rest of
+the day's schedule with start times in your local zone.
 
-How many glyphs fit is a guess — the device fonts are proportional and this code
-cannot measure them, so it budgets 4px each and gets 17. `TICKER_CHARS` raises
-that if lines page when they plainly had room to sit still.
+**When a game ends** — two minutes of the result: both tags with the winner in a
+filled block and the series score between them.
 
-Scrolling was tried first and read badly, for a reason worth writing down: the
-display redraws about five times a second. A step small enough to look smooth is
-one pixel, which crawls at 5px/s; a step fast enough to finish a sentence moves a
-whole 4px glyph at a time, which reads as a stutter rather than motion. The
-original 180ms step against a 200ms redraw was not even a whole multiple, so
-steps landed on alternating frames and visibly jittered. `TICKER_STYLE=scroll`
-brings the moving line back, now with its step aligned to the redraw.
-
-**Back**
-
-- Both team names, net worth lead and standing towers
-- Five rows, Radiant on the left and Dire on the right: hero + K/D/A. The name
-  **alternates between hero and player every three seconds**, because the row has
-  space for one and you want both. Steam keeps the nicknames on a different list
-  from the stats, so they are joined by account id — the same list also carries
-  casters and observers, which is why position is not good enough. A nickname the
-  bar fonts cannot draw is dropped and that row simply stays on the hero.
-- The sub-line carries the full event while the ticker runs — `FAL lost mid
-barracks` — since there is room for the detail the front cannot fit.
-- **During the draft** the same five rows are already there, one per slot, and
-  fill in with heroes as the picks land — a slot still waiting shows `-`, so you
-  watch the board being built rather than waiting for it to appear whole. The
-  subtitle shows the ban count plus each side's most recent ban, and the front
-  clock reads `DRAFT` instead of counting down to a horn that has not been
-  scheduled yet.
-
-**When a game ends** — the result takes the screen
-
-For two minutes the display is only about who won: both tags in bold with the
-winner knocked out of a filled block, the series score between them, and the
-next scheduled match on the bottom row. The loser is dimmed rather than hidden,
-because you want to read the pairing. Then the countdown comes back.
-
-The winner is marked by a filled block rather than an outline for a boring
-reason: 16 pixels cannot hold a border, a bold tag inside it and a line of text
-beneath without the border cutting through glyphs.
-
-The winner is not in the live feed — a finished game simply stops being listed,
-and the series score it carried was the score _going into_ that game. It is
-resolved from OpenDota's `/matches/{id}`, which needs no key. Until that lands
-the screen says `GAME OVER` and `result pending` rather than guessing.
-
-**Between games** — countdown, start time and bracket
-
-When nothing is live the countdown takes the top row and the matchup sits under
-it, spelled out: `Team Spirit VS Falcons` before a series starts, and
-`Team Spirit 1-0 Falcons` once one is under way — the score simply stands where
-`VS` did. All of it static: a line that paged between `game 1`, `game 2`,
-`game 3` was the hardest thing on the display to read.
-
-If the full names do not fit the line budget the pair steps down to tags —
-`TS 1-0 FLC` — rather than clipping a name or paging it. At the conservative
-default of 17 glyphs most real team names will take that fallback; raise
-`TICKER_CHARS` until they stop, since the device font is very likely narrower
-than the 4px a glyph this code has to assume.
-
-The back display carries the date, time and series length of the next match,
-then the rest of the known schedule: start time and matchup on each row, the
-next one brighter than the ones after it. A later day is named on that row so
-two 06:00s are not confused. Finished games stay off this list.
-
-This needs a schedule source, and there is not a free one — see below.
-
-## Requirements
-
-- Node.js 22+
-- BUSY Bar on USB, Wi-Fi or cloud
-- Optional: a free [Steam Web API key](https://steamcommunity.com/dev/apikey)
+**Standby** — the tournament name: shortened on the front (`The International
+2026` becomes `TI 2026`), spelled out on the back. It is looked up from the
+league of the game being followed, or from `LEAGUE_ID`. Without one the front
+just says `DOTA`.
 
 ## Setup
+
+Needs Node.js 22+ and a BUSY Bar on USB, Wi-Fi or cloud.
 
 ```bash
 npm install
@@ -114,194 +43,70 @@ cp .env.example .env
 npm run dev
 ```
 
-Leave the Bar on a BUSY / CUSTOM session, or its own session outranks the draws
-(see `DRAW_PRIORITY`).
+Leave the Bar on a BUSY or CUSTOM session, otherwise its own session outranks
+the draws (see `DRAW_PRIORITY`).
 
-### There is no live match right now
-
-Games only run during the tournament's local daytime, which is a poor
-development loop. Run a synthetic match instead:
-
-```bash
-npm run demo
-```
-
-The demo also decides its own winner — the synthetic match has no id anyone can
-resolve, so without that its result screen would sit on `GAME OVER` with nobody
-marked, which is the part of that screen worth looking at.
-
-It plays a believable game rather than a stress test: a draft, then thirty
-minutes ending 17-12, towers falling in a plausible order, Roshan twice, mid
-barracks right at the end, and then the game stops being live so the
-between-games view gets exercised too. The whole thing runs in about a minute
-and a half at 20x.
-
-### Screenshots without a Bar
-
-```bash
-npm run shot               # the synthetic match, mid-game
-npm run shot -- --draft    # the draft phase
-npm run shot -- --upcoming # the between-games countdown and bracket
-npm run shot -- --break    # the pause between games of a series
-npm run shot -- --event    # the ticker, caught on the barracks falling
-npm run shot -- --live     # whatever is actually live right now
-```
-
-Writes `preview-front.png` (72×16) and `preview-back.png` (160×80), scaled 8×
-with square pixels, and prints the same frame as text.
-
-It rasterises the _same element array_ that goes over the wire, so a layout bug
-appears here exactly as it would on hardware — with two deliberate caveats:
-
-- **Glyphs are approximate.** The Bar renders real TTFs baked to a glyph atlas
-  and there is no way to reach those from Node, so the preview uses a built-in
-  3×5 font and renders everything upper case. It will tell you that a column
-  overflows or that the wrong value is on screen; it will not tell you that a
-  letter is a pixel narrower on hardware.
-- **The back display is flattened to 16 greys**, because that is what the panel
-  is. This is the point, not a shortcut: it is what showed that Radiant green and
-  Dire red collapse into two nearly identical greys on the back, which is why the
-  rosters are separated by a divider rule instead of by colour.
-
-For pixel-exact _front_ rendering there is the community
-[busybar-emulator](https://github.com/maxswinkels/busybar-emulator), which
-speaks the same HTTP API with the device's real fonts — point `BUSY_ADDR` at it.
-It does not implement the back display, which is the half this preview exists
-for. busy-lib ships a `ScreenRenderer` with the same limitation, and it is
-canvas-bound so it will not run in Node at all.
-
-## Data sources
-
-Two upstreams, picked automatically:
+A free [Steam API key](https://steamcommunity.com/dev/apikey) is optional but
+worth it:
 
 |                  | Steam `GetLiveLeagueGames` | OpenDota `/live` |
 | ---------------- | -------------------------- | ---------------- |
 | Key              | free key required          | none             |
 | Per-player K/D/A | yes                        | no               |
 | Picks and bans   | yes                        | no               |
-| Tower state      | yes                        | yes              |
+| Nicknames        | yes                        | sometimes        |
 | Series score     | yes                        | no               |
 
-Set `STEAM_API_KEY` for the full back display. Without it the app falls back to
-OpenDota and the roster shows heroes only — the front display is identical
-either way.
+Without `LEAGUE_ID` or `MATCH_ID` it follows whichever pro game has the most
+spectators.
 
-With no `LEAGUE_ID` or `MATCH_ID` set, it follows whichever pro game has the
-most spectators. During TI that is reliably the main stage, which is why it is
-the default rather than a hardcoded league id that goes stale every year.
+## Trying it without a live match
 
-### Schedules and brackets: a hand-maintained file, for now
+```bash
+npm run demo                # a synthetic 30-minute match at 20x
+npm run shot                # screenshots: mid-game
+npm run shot -- --draft     # the draft filling up
+npm run shot -- --bans      # the ban portraits
+npm run shot -- --upcoming  # the countdown between matches
+npm run shot -- --break     # the pause inside a series
+npm run shot -- --event     # the event ticker
+npm run shot -- --result    # the winner screen
+npm run shot -- --idle      # the standby screen
+npm run shot -- --live      # whatever is live right now
+```
 
-Valve's `GetScheduledLeagueGames` is **gone** — it returns 404, as does
-`GetLeagueListing`. Nothing keyless publishes a pro schedule or bracket, and the
-paid-or-invite options are all blocked right now: Liquipedia moved brackets off
-its basic tier, and STRATZ token signup is broken. So there are two sources:
+`npm run shot` writes `preview-front.png` and `preview-back.png` at 8× and
+prints the same frame as text. The glyphs are approximations of the device
+fonts, and the back panel is flattened to its 16 greys.
 
-**`json` — a file you maintain (the default, and what actually works today)**
+## Schedule
+
+The countdown and the match list come from a file you maintain:
 
 ```bash
 cp schedule.example.json schedule.json
 npm run schedule:check
 ```
 
-The format is built around the thing that actually costs time: converting
-tournament times into your own. It does not ask you to.
-
 ```json
 {
   "timezone": "Asia/Shanghai",
   "date": "2026-08-20",
   "matches": [
-    {
-      "teams": "IW vs TSpirit",
-      "time": "10:00",
-      "stage": "Upper Bracket Quarterfinals",
-      "bo": 3
-    },
-    {
-      "teams": "VISION vs BB",
-      "time": "13:00",
-      "stage": "Upper Bracket Quarterfinals",
-      "bo": 3
-    }
+    { "teams": "IW vs TSpirit", "time": "10:00", "stage": "Upper Bracket QF", "bo": 3 },
+    { "teams": "VISION vs BB", "time": "13:00", "stage": "Upper Bracket QF", "bo": 3 }
   ]
 }
 ```
 
-- **`timezone` and `date` are set once per file.** Set `timezone` to whatever
-  zone your source _displays_, not the tournament's — Liquipedia converts times
-  to your own zone when you are logged in, so copying what you see is usually
-  right. Then each match is just a wall-clock time and there is nothing to
-  convert at all. Zone names resolve through `Intl`, so DST is handled rather
-  than approximated by a fixed offset.
-- **`teams` is one field.** `"IW vs TSpirit"`, not a `teamA`/`teamB` pair. Tags
-  and the short stage label (`Upper Bracket R2` → `UB2`) are derived.
-- **The bracket is derived from the matches**, so there is one list to keep
-  straight instead of two that have to agree. Supply a `bracket` array only to
-  override it.
-- **Finishing a match is one edit**: add `"score": "2-0"`. It drops out of the
-  countdown and shows its result in the bracket.
-- The file is re-read whenever it changes, so you can edit it while the app runs.
+- `timezone` and `date` are set once; each match is a wall-clock time in that zone
+- Add `"score": "2-0"` to a match when it finishes and it drops out of the countdown
+- The file is re-read whenever it changes
+- `npm run schedule:check` prints it in both tournament and local time
 
-`npm run schedule:check` prints the parsed file with tournament time and your
-local time side by side:
-
-```
-  Asia/Shanghai         Asia/Tbilisi          in        stage   match
-> 20 Aug, 10:00         20 Aug, 06:00         3d 13h    UBQ     IW vs TSpirit  BO3
-  20 Aug, 13:00         20 Aug, 09:00         3d 16h    UBQ     VISION vs BB  BO3
-```
-
-That column pair exists because the failure mode of a hand-written schedule is a
-time that is off by a timezone: it looks perfectly fine in the file and only
-shows up hours later as a countdown to the wrong thing. When the file's zone is
-already your own, the second column is dropped and it says so.
-
-Bad files fail loudly and name the field: `matches[2].time "lunchtime" is not a
-time I can read (expected HH:MM)`. A mistyped zone is caught at load rather than
-silently treated as UTC.
-
-The longhand form (`teamA`, `teamB`, `startsAt` with a full ISO string) still
-works for one-offs.
-
-Note that **the bar shows start times in your local zone**, not the
-tournament's — it is telling you when to be at your desk.
-
-**`stratz` — ready, but switched off**
-
-`SCHEDULE_SOURCE=stratz` with a `STRATZ_TOKEN` uses their GraphQL league
-brackets. ⚠️ **The query is written to STRATZ's documented `League.nodeGroups`
-schema but has never run against a live token**, because signup was broken when
-it was written. Every field is read defensively, so a wrong name yields a blank
-value rather than a crash — but it may well need a rename or two. The moment a
-token works:
-
-```bash
-npm run stratz:check
-```
-
-That prints the query, the raw response and what the parser made of it, so a
-schema mismatch is one glance away. `src/dota/schedule/stratz.ts` keeps the
-query in a single constant for exactly this reason. Note also that
-`api.stratz.com` sits behind Cloudflare, which may refuse server-side calls
-regardless of the token.
-
-For reference, the options and why they are not wired up:
-
-| Source            | What it takes                     | Notes                                                                                                                       |
-| ----------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Liquipedia API v3 | free API key, requested from them | best data fit — matches, brackets, tournaments. Returns 403 without one, and their MediaWiki `api.php` is closed off (406). |
-| STRATZ GraphQL    | free token                        | rich league/bracket schema, but the endpoint sits behind Cloudflare                                                         |
-| PandaScore        | account, free tier unclear        | clean REST: `/matches/upcoming`, `/tournaments/{id}/brackets`                                                               |
-
-So `ScheduleSource` is an interface (`src/dota/schedule.ts`) with a demo
-implementation, and no real one is wired up yet. Without one the app shows the
-plain idle screen — it will not invent a countdown.
-
-Hero names come from OpenDota at startup rather than a vendored table: the
-roster grows every patch, and a stale table shows `#145` for exactly the heroes
-a new patch's tournament is about. If that request fails the display degrades to
-hero ids instead of refusing to start.
+`SCHEDULE_SOURCE=stratz` with a `STRATZ_TOKEN` reads brackets from STRATZ
+instead. The query has never run against a live token — check it with
+`npm run stratz:check` before trusting it.
 
 ## Configuration
 
@@ -310,50 +115,20 @@ hero ids instead of refusing to start.
 | `BUSY_ADDR`          | `10.0.4.20`     | USB address; Bar LAN IP for Wi-Fi; `https://api.busy.app` for cloud |
 | `BUSY_TOKEN`         | —               | cloud only                                                          |
 | `BUSY_HTTP_PASSWORD` | —               | Wi-Fi only (Bar web UI → Network → HTTP API access)                 |
-| `STEAM_API_KEY`      | —               | unlocks per-player stats                                            |
+| `STEAM_API_KEY`      | —               | unlocks per-player stats, picks and bans                            |
 | `LEAGUE_ID`          | —               | pin to one tournament                                               |
 | `MATCH_ID`           | —               | pin to one game                                                     |
-| `POLL_MS`            | `5000`          | upstreams refresh every few seconds                                 |
+| `SOUNDS`             | `1`             | `0` mutes event sounds                                              |
+| `BAN_PORTRAITS`      | `1`             | `0` keeps the bans as text                                          |
+| `TICKER_STYLE`       | `page`          | `scroll` moves long lines instead of paging them                    |
+| `TICKER_CHARS`       | `17`            | glyphs assumed to fit one front row; raise if lines page too soon   |
+| `POLL_MS`            | `5000`          | how often the upstream is polled                                    |
 | `FRAME_MS`           | `200`           | redraw cadence                                                      |
 | `DRAW_PRIORITY`      | `40`            |                                                                     |
 | `SCHEDULE_SOURCE`    | auto            | `json` / `stratz` / `demo` / `none`                                 |
-| `SCHEDULE_FILE`      | `schedule.json` | hand-maintained schedule file                                       |
+| `SCHEDULE_FILE`      | `schedule.json` | schedule file path                                                  |
 | `STRATZ_TOKEN`       | —               | required by `SCHEDULE_SOURCE=stratz`                                |
 | `DEMO`               | —               | `1` for the synthetic match                                         |
 
-## Notes
-
-**You are watching the past.** Both sources carry the tournament's broadcast
-delay, typically two minutes. The bar is in sync with the stream, not with the
-players.
-
-**Polling is deliberately slow.** OpenDota allows 60 requests a minute and the
-upstream numbers only change every few seconds, so a faster poll would spend
-quota to redraw identical frames. The render loop runs independently and much
-faster, so LED flashes stay crisp.
-
-**Upstream hiccups keep the last frame.** A failed poll leaves the previous
-numbers on screen rather than blanking the display — slightly stale beats empty.
-
-## Changing the wording
-
-Every sentence that reaches the display is in one block at the top of
-[`src/domain/events.ts`](src/domain/events.ts) — `EVENT_TEXT` for the events
-themselves and `BUILDING_WORDS` for how lanes and tiers are named. Nothing below
-that block builds a sentence of its own, so rewording is a one-file edit.
-
-Keep it plain ASCII. The Bar draws a placeholder box for glyphs its font lacks,
-so an em dash or a middle dot arrives as a stray rectangle mid-sentence — which
-is exactly what the first version did. A test walks every event and every drawn
-line and fails on any character above ASCII 126.
-
-## Things worth building next
-
-- A Roshan _countdown_ on screen, not just the kill notice — the timer is already
-  parsed
-- Who killed whom: per-player kill and death counters are in the Steam
-  scoreboard, but pairing them into "X killed Y" is guesswork when several land
-  in one five-second poll, so only the team is reported today
-- Bans as a grid of hero portraits — the back display has the room once picks are
-  done, but it means uploading images to device assets on every change
-- Per-player net worth bars instead of plain K/D/A text
+Both sources carry the tournament's broadcast delay, so the bar is in sync with
+the stream, roughly two minutes behind the players.

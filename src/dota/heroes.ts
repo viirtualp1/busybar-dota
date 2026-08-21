@@ -1,5 +1,7 @@
 const HEROES_URL = 'https://api.opendota.com/api/heroes';
 
+const HERO_PREFIX = 'npc_dota_hero_';
+
 const SHORT_NAMES: Record<string, string> = {
   'Anti-Mage': 'AM',
   'Centaur Warrunner': 'Centaur',
@@ -34,10 +36,11 @@ const SHORT_NAMES: Record<string, string> = {
   'Wraith King': 'WK',
 };
 
-type OpenDotaHero = { id?: unknown; localized_name?: unknown };
+type OpenDotaHero = { id?: unknown; name?: unknown; localized_name?: unknown };
 
 export class HeroCatalog {
   private names = new Map<number, string>();
+  private slugs = new Map<number, string>();
   private loaded = false;
 
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
@@ -63,6 +66,10 @@ export class HeroCatalog {
         if (Number.isFinite(id) && name) {
           this.names.set(id, SHORT_NAMES[name] ?? name);
         }
+        const slug = typeof entry.name === 'string' ? entry.name : '';
+        if (Number.isFinite(id) && slug.startsWith(HERO_PREFIX)) {
+          this.slugs.set(id, slug.slice(HERO_PREFIX.length));
+        }
       }
       this.loaded = this.names.size > 0;
       return this.loaded;
@@ -77,5 +84,9 @@ export class HeroCatalog {
     }
 
     return this.names.get(heroId) ?? `#${heroId}`;
+  }
+
+  slug(heroId: number) {
+    return this.slugs.get(heroId) ?? '';
   }
 }

@@ -313,14 +313,15 @@ function killEvent(
 
   const side: Side = radiantGained >= direGained ? 'radiant' : 'dire';
   const gained = Math.max(radiantGained, direGained);
-  const killers = [
-    ...risen(previous.radiantPlayers, state.radiantPlayers, 'kills'),
-    ...risen(previous.direPlayers, state.direPlayers, 'kills'),
-  ];
-  const victims = [
-    ...risen(previous.radiantPlayers, state.radiantPlayers, 'deaths'),
-    ...risen(previous.direPlayers, state.direPlayers, 'deaths'),
-  ];
+  // The killers are on the side that scored and the victims on the other one, so a
+  // trade in the same poll does not read as one team killing its own players.
+  const scored = side === 'radiant' ? previous.radiantPlayers : previous.direPlayers;
+  const scoredNow = side === 'radiant' ? state.radiantPlayers : state.direPlayers;
+  const lost = side === 'radiant' ? previous.direPlayers : previous.radiantPlayers;
+  const lostNow = side === 'radiant' ? state.direPlayers : state.radiantPlayers;
+
+  const killers = risen(scored, scoredNow, 'kills');
+  const victims = risen(lost, lostNow, 'deaths');
   const killer =
     killers.length > 0
       ? killers.map((player) => labelOf(player, heroName)).join(' and ')

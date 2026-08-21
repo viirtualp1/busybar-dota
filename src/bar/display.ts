@@ -48,6 +48,7 @@ export class BarDisplay {
   private queued: DotaFrame | null = null;
   private lastKey = '';
   private cleared = false;
+  private drewImages = false;
   private warnedPriority = false;
   private failedSounds = new Set<string>();
 
@@ -101,6 +102,10 @@ export class BarDisplay {
     }
   }
 
+  async uploadAsset(path: string, data: Buffer) {
+    await this.bar.AssetsUpload({ application_name: APP_NAME, file: path, data });
+  }
+
   async playEvent(event: MatchEvent) {
     if (!event.sound) {
       return;
@@ -136,10 +141,17 @@ export class BarDisplay {
   }
 
   private async draw(frame: DotaFrame) {
+    // Elements live on the device until something overwrites them, and a text
+    // element cannot overwrite an image, so the ban grid leaving needs a clear.
+    if (this.drewImages && frame.banGrid === null) {
+      this.cleared = false;
+    }
+
     if (!this.cleared) {
       await this.bar.DisplayClear({ application_name: APP_NAME });
       this.cleared = true;
     }
+    this.drewImages = frame.banGrid !== null;
 
     const payload: DisplayDrawParams = {
       application_name: APP_NAME,

@@ -29,6 +29,11 @@ export const BACK = {
   bracketLabelWidth: 20,
   bracketTextX: 22,
   bracketTextWidth: 134,
+  bansPerRow: 7,
+  banLeftX: 8,
+  banGap: 5,
+  banTopY: 26,
+  banRowStep: 26,
 } as const;
 
 export type BarFont = 'tiny' | 'small' | 'bold';

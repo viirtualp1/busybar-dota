@@ -153,6 +153,28 @@ test('a kill names the heroes when the scoreboard has K/D', () => {
   assert.equal(event?.text, 'Jugger killed SF');
 });
 
+test('a trade in one poll names the scoring side, not both sides at once', () => {
+  const base = snapshot();
+  const before = stateOf({
+    ...base,
+    radiant: { ...base.radiant, players: [player(8, 2, 0)] },
+    dire: { ...base.dire, players: [player(11, 1, 1)] },
+  });
+  // Both sides scored between polls; Radiant scored more, so the line is theirs.
+  const { event } = detectEvent(
+    before,
+    {
+      ...base,
+      radiant: { ...base.radiant, kills: 7, players: [player(8, 4, 1)] },
+      dire: { ...base.dire, kills: 4, players: [player(11, 2, 2)] },
+    },
+    (id) => (id === 8 ? 'Jugger' : id === 11 ? 'SF' : `#${id}`),
+  );
+
+  assert.equal(event?.side, 'radiant');
+  assert.equal(event?.text, 'Jugger killed SF');
+});
+
 test('a source without building masks never invents a fallen tower', () => {
   const before = stateOf(snapshot());
   const base = snapshot();

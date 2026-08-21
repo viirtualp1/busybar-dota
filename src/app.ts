@@ -11,10 +11,12 @@ import {
   type SeriesBreak,
 } from './domain/series';
 import type { HeroCatalog } from './dota/heroes';
+import { LeagueCatalog } from './dota/leagues';
 import type { ResultLookup } from './dota/match-result';
 import type { Schedule, ScheduleSource } from './dota/schedule/index';
 import type { MatchSource } from './dota/source';
-import { idleSnapshot, type MatchSnapshot } from './dota/types';
+import { PortraitStore } from './dota/portraits';
+import { idleSnapshot, isDrafting, type MatchSnapshot } from './dota/types';
 import { buildFrame } from './view/frame';
 
 export type Logger = {
@@ -37,6 +39,8 @@ const REPEAT_WARNING_MS = 30_000;
 
 const SCHEDULE_POLL_MS = 120_000;
 
+const NO_PORTRAITS: ReadonlySet<number> = new Set();
+
 export class App {
   private readonly config: Config;
   private readonly source: MatchSource;
@@ -46,6 +50,8 @@ export class App {
   private readonly display: BarDisplay;
   private readonly logger: Logger;
   private readonly ticker = new EventTicker();
+  private readonly portraits: PortraitStore | null;
+  private readonly leagues = new LeagueCatalog();
 
   private snapshot: MatchSnapshot = idleSnapshot();
   private schedule: Schedule | null = null;
@@ -67,6 +73,11 @@ export class App {
     this.heroes = deps.heroes;
     this.display = deps.display;
     this.logger = deps.logger ?? console;
+    this.portraits = this.config.banPortraits
+      ? new PortraitStore(this.heroes, (path, data) =>
+          this.display.uploadAsset(path, data),
+        )
+      : null;
   }
 
   async start() {
@@ -78,6 +89,10 @@ export class App {
 
     if (!(await this.heroes.load())) {
       this.logger.warn('Hero names unavailable, showing hero ids');
+    }
+
+    if (this.config.leagueId && (await this.leagues.load(this.config.leagueId))) {
+      this.logger.info(`League ${this.config.leagueId}: ${this.leagues.name}`);
     }
     this.loops = [this.pollLoop(), this.renderLoop()];
   }
@@ -127,6 +142,8 @@ export class App {
         this.snapshot = next ?? idleSnapshot();
         this.idleNote = next ? '' : 'waiting for the next game';
         this.handleEvents();
+        this.prepareBans();
+        await this.trackLeague();
         this.warnings.delete('source');
         await this.trackSeries(next);
         if (!next) {
@@ -226,6 +243,36 @@ export class App {
     }
   }
 
+  // The idle screen names the tournament, so the league of whatever game is being
+  // followed is worth knowing even when LEAGUE_ID was never set.
+  private async trackLeague() {
+    const known = this.leagues.name;
+    if (!this.snapshot.leagueId) {
+      return;
+    }
+
+    await this.leagues.load(this.snapshot.leagueId, this.config.requestTimeoutMs);
+    if (this.leagues.name && this.leagues.name !== known) {
+      this.logger.info(`League ${this.snapshot.leagueId}: ${this.leagues.name}`);
+    }
+  }
+
+  // Icons are fetched and uploaded during the draft, so the grid is ready to draw
+  // the moment the picks are in. A failure just leaves the bans as text.
+  private prepareBans() {
+    if (!this.portraits || !isDrafting(this.snapshot)) {
+      return;
+    }
+    const bans = [...this.snapshot.radiant.draft.bans, ...this.snapshot.dire.draft.bans];
+    if (bans.length === 0) {
+      return;
+    }
+
+    void this.portraits.prepare(bans).catch((error: unknown) => {
+      this.warnRepeated('portraits', `Ban portraits unavailable: ${errorMessage(error)}`);
+    });
+  }
+
   private async renderLoop() {
     while (this.running) {
       const now = this.now();
@@ -241,6 +288,8 @@ export class App {
             idleNote: this.idleNote,
             tickerStyle: this.config.tickerStyle,
             tickerChars: this.config.tickerChars,
+            portraits: this.portraits?.ready ?? NO_PORTRAITS,
+            leagueName: this.leagues.name,
           }),
         );
       } catch (error) {

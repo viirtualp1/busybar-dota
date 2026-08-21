@@ -99,6 +99,37 @@ test('a named roster alternates between hero and nickname', () => {
   assert.equal(heroAt(ROSTER_ROTATE_MS * 2), '#40');
 });
 
+test('the stats column blinks between K/D/A and net worth', () => {
+  const rich = snapshot({
+    radiant: {
+      ...emptyTeam('Team Spirit', 'TS'),
+      players: [player('Yatoro', 40)],
+    },
+  });
+  const statsAt = (nowEpochMs: number) =>
+    pairOf(buildFrame(rich, frameOptions({ maxRows: 5, nowEpochMs })).backRows[0]).left
+      ?.stats;
+
+  assert.equal(statsAt(0), '1/2/3');
+  assert.equal(statsAt(ROSTER_ROTATE_MS), '9k');
+  assert.equal(statsAt(ROSTER_ROTATE_MS * 2), '1/2/3');
+});
+
+test('a source with no net worth keeps K/D/A on screen both ways', () => {
+  const thin = snapshot({
+    radiant: {
+      ...emptyTeam('Team Spirit', 'TS'),
+      players: [{ ...player('Yatoro', 40), netWorth: null }],
+    },
+  });
+  const statsAt = (nowEpochMs: number) =>
+    pairOf(buildFrame(thin, frameOptions({ maxRows: 5, nowEpochMs })).backRows[0]).left
+      ?.stats;
+
+  assert.equal(statsAt(0), '1/2/3');
+  assert.equal(statsAt(ROSTER_ROTATE_MS), '1/2/3');
+});
+
 test('an unnamed player stays on the hero name rather than blanking out', () => {
   const nameless = snapshot({
     radiant: { ...emptyTeam('Team Spirit', 'TS'), players: [player('', 40)] },
