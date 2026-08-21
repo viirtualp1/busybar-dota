@@ -86,6 +86,13 @@ export function idleSnapshot(): MatchSnapshot {
   };
 }
 
+export function asciiName(name: string) {
+  return name
+    .replace(/[^ -~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function deriveTag(name: string, fallback: string) {
   const clean = name.trim();
   if (!clean) {

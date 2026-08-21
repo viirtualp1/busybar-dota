@@ -1,4 +1,5 @@
 import {
+  asciiName,
   deriveTag,
   emptyTeam,
   type MatchSnapshot,
@@ -84,6 +85,7 @@ function toSnapshot(game: RawGame): MatchSnapshot {
   const scoreboard = isRecord(game['scoreboard']) ? game['scoreboard'] : {};
   const radiantBoard = isRecord(scoreboard['radiant']) ? scoreboard['radiant'] : {};
   const direBoard = isRecord(scoreboard['dire']) ? scoreboard['dire'] : {};
+  const names = playerNames(game['players']);
 
   const radiant = team(
     game['radiant_team'],
@@ -91,6 +93,7 @@ function toSnapshot(game: RawGame): MatchSnapshot {
     num(game['radiant_series_wins']),
     'Radiant',
     'RAD',
+    names,
   );
   const dire = team(
     game['dire_team'],
@@ -98,6 +101,7 @@ function toSnapshot(game: RawGame): MatchSnapshot {
     num(game['dire_series_wins']),
     'Dire',
     'DIR',
+    names,
   );
 
   return {
@@ -125,6 +129,7 @@ function team(
   seriesWins: number,
   fallbackName: string,
   fallbackTag: string,
+  names: Map<number, string>,
 ): TeamState {
   const info = isRecord(rawTeam) ? rawTeam : {};
   const name = str(info['team_name']) || fallbackName;
@@ -138,7 +143,7 @@ function team(
     barracksState:
       board['barracks_state'] === undefined ? null : num(board['barracks_state']),
     seriesWins,
-    players: players(board['players']),
+    players: players(board['players'], names),
     draft: {
       picks: heroIds(board['picks']),
       bans: heroIds(board['bans']),
@@ -157,14 +162,31 @@ function heroIds(raw: unknown) {
     .filter((heroId) => heroId > 0);
 }
 
-function players(raw: unknown): PlayerState[] {
+function playerNames(raw: unknown): Map<number, string> {
+  const names = new Map<number, string>();
+  if (!Array.isArray(raw)) {
+    return names;
+  }
+
+  for (const entry of raw.filter(isRecord)) {
+    const accountId = num(entry['account_id']);
+    const name = asciiName(str(entry['name']));
+    if (accountId > 0 && name) {
+      names.set(accountId, name);
+    }
+  }
+
+  return names;
+}
+
+function players(raw: unknown, names: Map<number, string>): PlayerState[] {
   if (!Array.isArray(raw)) {
     return [];
   }
 
   return raw.filter(isRecord).map((player) => ({
     heroId: num(player['hero_id']),
-    name: str(player['name']),
+    name: names.get(num(player['account_id'])) ?? asciiName(str(player['name'])),
     kills: numOrNull(player['kills']),
     // The Steam scoreboard really does call it `death`, singular.
     deaths: numOrNull(player['death']),

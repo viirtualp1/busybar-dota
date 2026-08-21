@@ -1,4 +1,5 @@
 import {
+  asciiName,
   deriveTag,
   emptyTeam,
   type MatchSnapshot,
@@ -128,7 +129,7 @@ function players(raw: unknown): { side: number; state: PlayerState }[] {
     side: num(player['team']),
     state: {
       heroId: num(player['hero_id']),
-      name: str(player['name']),
+      name: asciiName(str(player['name'])),
       kills: null,
       deaths: null,
       assists: null,

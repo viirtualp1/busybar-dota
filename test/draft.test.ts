@@ -8,7 +8,7 @@ import {
   isDrafting,
   type MatchSnapshot,
 } from '../src/dota/types';
-import { buildFrame } from '../src/view/frame';
+import { buildFrame, DRAFT_SLOTS } from '../src/view/frame';
 
 import { frameOptions, pairOf } from './helpers';
 
@@ -59,7 +59,33 @@ test('draft rows list picks in order, one column per team', () => {
   assert.equal(pairOf(frame.backRows[0]).left?.stats, '#1');
   assert.equal(pairOf(frame.backRows[1]).left?.stats, '#2');
 
-  assert.equal(pairOf(frame.backRows[1]).right, null);
+  assert.equal(pairOf(frame.backRows[0]).right?.stats, '#1');
+});
+
+test('every draft slot is drawn from the start, so picks fill a visible board', () => {
+  const frame = buildFrame(drafting(), options);
+  for (let index = 0; index < DRAFT_SLOTS; index += 1) {
+    const row = pairOf(frame.backRows[index]);
+    assert.ok(row.left, `radiant slot ${index + 1} is missing`);
+    assert.ok(row.right, `dire slot ${index + 1} is missing`);
+  }
+
+  // Radiant has two picks, dire one; the rest are waiting slots, not blank rows.
+  assert.equal(pairOf(frame.backRows[1]).right?.hero, '-');
+  assert.equal(pairOf(frame.backRows[4]).left?.hero, '-');
+});
+
+test('a hero shows up the moment it is picked', () => {
+  const before = buildFrame(drafting(), options);
+  const after = buildFrame(
+    drafting({
+      dire: { ...emptyTeam('Falcons', 'FLC'), draft: { picks: [11, 41], bans: [6, 21] } },
+    }),
+    options,
+  );
+
+  assert.equal(pairOf(before.backRows[1]).right?.hero, '-');
+  assert.equal(pairOf(after.backRows[1]).right?.hero, '#41');
 });
 
 test('the ban summary counts both sides and names the latest ban', () => {

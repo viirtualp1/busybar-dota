@@ -50,12 +50,18 @@ brings the moving line back, now with its step aligned to the redraw.
 - Both team names, net worth lead and standing towers
 - Five rows, Radiant on the left and Dire on the right: hero + K/D/A. The name
   **alternates between hero and player every three seconds**, because the row has
-  space for one and you want both.
+  space for one and you want both. Steam keeps the nicknames on a different list
+  from the stats, so they are joined by account id — the same list also carries
+  casters and observers, which is why position is not good enough. A nickname the
+  bar fonts cannot draw is dropped and that row simply stays on the hero.
 - The sub-line carries the full event while the ticker runs — `FAL lost mid
 barracks` — since there is room for the detail the front cannot fit.
-- **During the draft** the same rows show picks in draft order, and the subtitle
-  shows the ban count plus each side's most recent ban. The front clock reads
-  `DRAFT` instead of counting down to a horn that has not been scheduled yet.
+- **During the draft** the same five rows are already there, one per slot, and
+  fill in with heroes as the picks land — a slot still waiting shows `-`, so you
+  watch the board being built rather than waiting for it to appear whole. The
+  subtitle shows the ban count plus each side's most recent ban, and the front
+  clock reads `DRAFT` instead of counting down to a horn that has not been
+  scheduled yet.
 
 **When a game ends** — the result takes the screen
 

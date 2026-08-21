@@ -160,6 +160,42 @@ test('the result screen boxes the winner and drops the event line', () => {
   assert.equal(filled[0].fill_colors?.[0], COLORS.radiant);
 });
 
+test('the winner tag sits in the middle of its box, with equal margins', () => {
+  const frame = buildFrame(
+    idleSnapshot(),
+    frameOptions({ seriesBreak: seriesBreak(), nowEpochMs: 0 }),
+  );
+  const elements = frontElements(frame);
+  const boxOf = (id: string) => {
+    const element = elements.find((candidate) => candidate.id === id);
+    assert.ok(element && element.type === 'rectangle');
+    return element;
+  };
+  const tagOf = (id: string) => {
+    const element = elements.find((candidate) => candidate.id === id);
+    assert.ok(element && element.type === 'text');
+    return element;
+  };
+
+  for (const side of ['radiant', 'dire'] as const) {
+    const box = boxOf(`final-box-${side}`);
+    const tag = tagOf(`final-${side}`);
+    const centre = (box.x ?? 0) + (box.width ?? 0) / 2;
+    assert.equal(tag.align, 'top_mid');
+    assert.ok(
+      Math.abs((tag.x ?? 0) - centre) <= 0.5,
+      `${side} tag is at ${tag.x}, its box is centred on ${centre}`,
+    );
+  }
+
+  // Both boxes plus the series score between them have to fit across 72px.
+  const spare =
+    FRONT.width -
+    (boxOf('final-box-radiant').width ?? 0) -
+    (boxOf('final-box-dire').width ?? 0);
+  assert.ok(spare >= frame.seriesText.length * FONT_WIDTH.tiny, `only ${spare}px spare`);
+});
+
 test('the result screen still shows the series score beside the tags', () => {
   const frame = buildFrame(
     idleSnapshot(),

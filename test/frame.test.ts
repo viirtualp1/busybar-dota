@@ -7,12 +7,16 @@ import {
   idleSnapshot,
   type MatchSnapshot,
 } from '../src/dota/types';
-import { buildFrame } from '../src/view/frame';
+import { buildFrame, ROSTER_ROTATE_MS } from '../src/view/frame';
 import { formatClock, formatGold } from '../src/view/format';
 
 import { frameOptions, heroes, pairOf } from './helpers';
 
 const options = frameOptions({ maxRows: 5 });
+
+function player(name: string, heroId: number) {
+  return { heroId, name, kills: 1, deaths: 2, assists: 3, netWorth: 9000, level: 20 };
+}
 
 function snapshot(overrides: Partial<MatchSnapshot> = {}): MatchSnapshot {
   return {
@@ -77,6 +81,34 @@ test('an idle snapshot yields a blank roster instead of stale rows', () => {
       return left === null && right === null;
     }),
   );
+});
+
+test('a named roster alternates between hero and nickname', () => {
+  const withNames = snapshot({
+    radiant: {
+      ...emptyTeam('Team Spirit', 'TS'),
+      players: [player('Yatoro', 40), player('Larl', 15)],
+    },
+  });
+  const heroAt = (nowEpochMs: number) =>
+    pairOf(buildFrame(withNames, frameOptions({ maxRows: 5, nowEpochMs })).backRows[0])
+      .left?.hero;
+
+  assert.equal(heroAt(0), '#40');
+  assert.equal(heroAt(ROSTER_ROTATE_MS), 'Yatoro');
+  assert.equal(heroAt(ROSTER_ROTATE_MS * 2), '#40');
+});
+
+test('an unnamed player stays on the hero name rather than blanking out', () => {
+  const nameless = snapshot({
+    radiant: { ...emptyTeam('Team Spirit', 'TS'), players: [player('', 40)] },
+  });
+  const cellAt = (nowEpochMs: number) =>
+    pairOf(buildFrame(nameless, frameOptions({ maxRows: 5, nowEpochMs })).backRows[0])
+      .left?.hero;
+
+  assert.equal(cellAt(0), '#40');
+  assert.equal(cellAt(ROSTER_ROTATE_MS), '#40');
 });
 
 test('tags fall back to initials when the API gives no short name', () => {

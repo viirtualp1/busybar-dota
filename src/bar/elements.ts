@@ -136,15 +136,28 @@ function finalElements(frame: DotaFrame): Array<TextElement | RectangleElement> 
       direWidth,
       won('dire') && final !== null,
     ),
-    finalTag('final-radiant', final?.radiant ?? '', 'top_left', 3, won('radiant')),
-    finalTag('final-dire', final?.dire ?? '', 'top_right', FRONT.width - 3, won('dire')),
+    finalTag(
+      'final-radiant',
+      final?.radiant ?? '',
+      Math.round(radiantWidth / 2),
+      won('radiant'),
+    ),
+    finalTag(
+      'final-dire',
+      final?.dire ?? '',
+      FRONT.width - Math.round(direWidth / 2),
+      won('dire'),
+    ),
   ];
 }
+
+const FINAL_BOX_PAD = 3;
+const FINAL_BOX_MAX = FRONT.width / 2 - 6;
 
 function boxWidth(tag: string) {
   const text = Math.max(1, tag.length) * FONT_WIDTH.bold;
 
-  return Math.min(FRONT.width / 2 - 1, text + 3);
+  return Math.min(FINAL_BOX_MAX, text + FINAL_BOX_PAD * 2);
 }
 
 const FINAL_BOX_HEIGHT = 11;
@@ -172,13 +185,7 @@ function boxRect(
   };
 }
 
-function finalTag(
-  id: string,
-  text: string,
-  align: 'top_left' | 'top_right',
-  x: number,
-  winner: boolean,
-): TextElement {
+function finalTag(id: string, text: string, x: number, winner: boolean): TextElement {
   return {
     id,
     type: 'text',
@@ -187,7 +194,7 @@ function finalTag(
 
     color: text ? (winner ? COLORS.panelDark : COLORS.dim) : COLORS.transparent,
     display: 'front',
-    align,
+    align: 'top_mid',
     x,
     y: 0,
     timeout: 0,

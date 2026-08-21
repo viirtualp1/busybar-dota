@@ -361,30 +361,31 @@ function banSummary(snapshot: MatchSnapshot, options: FrameOptions) {
   return `${counts}  ${left} / ${right}`;
 }
 
+export const DRAFT_SLOTS = 5;
+
+const EMPTY_SLOT = '-';
+
 function draftRows(snapshot: MatchSnapshot, options: FrameOptions): BackRow[] {
   const rows: BackRow[] = [];
   for (let index = 0; index < options.maxRows; index += 1) {
+    const slot = index < DRAFT_SLOTS;
     rows.push({
       kind: 'pair',
-      left: pickCell(snapshot.radiant, index, options),
-      right: pickCell(snapshot.dire, index, options),
+      left: slot ? pickCell(snapshot.radiant, index, options) : null,
+      right: slot ? pickCell(snapshot.dire, index, options) : null,
     });
   }
 
   return rows;
 }
 
-function pickCell(
-  team: TeamState,
-  index: number,
-  options: FrameOptions,
-): BackCell | null {
+function pickCell(team: TeamState, index: number, options: FrameOptions): BackCell {
   const heroId = team.draft.picks[index];
-  if (heroId === undefined) {
-    return null;
-  }
 
-  return { hero: options.heroes.name(heroId), stats: `#${index + 1}` };
+  return {
+    hero: heroId === undefined ? EMPTY_SLOT : options.heroes.name(heroId),
+    stats: `#${index + 1}`,
+  };
 }
 
 function seriesText(snapshot: MatchSnapshot) {
