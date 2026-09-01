@@ -26,7 +26,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/fix-esm-extensions.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && busybar-fix-esm",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -42,7 +42,8 @@
     "schedule:check": "tsx src/schedule-check.ts"
   },
   "dependencies": {
-    "@busy-app/busy-lib": "^0.18.0"
+    "@busy-app/busy-lib": "^0.18.0",
+    "busybar-kit": "file:../busybar-kit"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

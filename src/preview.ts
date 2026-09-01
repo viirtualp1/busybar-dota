@@ -11,7 +11,7 @@ import { detectEvent, stateOf, type MatchEvent } from './domain/events';
 import { idleSnapshot, type MatchSnapshot } from './dota/types';
 import { RESULT_SCREEN_MS, type SeriesBreak } from './domain/series';
 import { buildFrame, type DotaFrame } from './view/frame';
-import { renderBack, renderFront } from './preview/raster';
+import { renderBack, renderFront } from 'busybar-kit/preview';
 
 const SCALE = 8;
 

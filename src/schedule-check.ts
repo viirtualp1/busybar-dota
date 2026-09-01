@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { loadConfig, loadEnvFile } from './config';
 import { buildSchedule, parseScheduleFile } from './dota/schedule/json';
 import { zoneOffsetMs } from './dota/schedule/zoned';
-import { formatCountdown } from './view/format';
+import { formatCountdown } from 'busybar-kit/format';
 
 loadEnvFile();
 const { config } = loadConfig();

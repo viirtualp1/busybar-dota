@@ -1,22 +1,23 @@
 import type { RectangleElement, TextElement } from '@busy-app/busy-lib';
+import { band, type AnyElement } from 'busybar-kit/elements';
 import { COLORS } from '../view/colors';
 import type { DotaFrame } from '../view/frame';
 import { BACK, clipToWidth, FONT_WIDTH, FRONT, rowY } from './layout';
 
-export function frontElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
+export function frontElements(frame: DotaFrame): AnyElement[] {
   const fill = frame.radiantFill;
 
   const ticking = frame.tickerText.length > 0 && frame.finalTags === null;
   const bottomText = frame.tickerText;
 
   return [
-    bandRect(
+    band(
       'band-radiant',
       0,
       fill,
       frame.showBands ? COLORS.radiantFill : COLORS.transparent,
     ),
-    bandRect(
+    band(
       'band-dire',
       fill,
       FRONT.width - fill,
@@ -121,7 +122,7 @@ export function frontElements(frame: DotaFrame): Array<TextElement | RectangleEl
   ];
 }
 
-function finalElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
+function finalElements(frame: DotaFrame): AnyElement[] {
   const final = frame.finalTags;
   const won = (side: 'radiant' | 'dire') => final?.winner === side;
 
@@ -194,26 +195,8 @@ function finalTag(
   };
 }
 
-function bandRect(id: string, x: number, width: number, color: string): RectangleElement {
-  return {
-    id,
-    type: 'rectangle',
-    display: 'front',
-    align: 'top_left',
-    x,
-    y: 0,
-    width: Math.max(1, width),
-    height: FRONT.height,
-    fill: 'solid',
-    fill_colors: [color],
-    border_width: 0,
-    border_color: COLORS.transparent,
-    timeout: 0,
-  };
-}
-
-export function backElements(frame: DotaFrame): Array<TextElement | RectangleElement> {
-  const elements: Array<TextElement | RectangleElement> = [
+export function backElements(frame: DotaFrame): AnyElement[] {
+  const elements: AnyElement[] = [
     {
       id: 'back-header',
       type: 'text',

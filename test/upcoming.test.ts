@@ -8,7 +8,7 @@ import {
 } from '../src/dota/schedule/index';
 import { idleSnapshot } from '../src/dota/types';
 import { buildFrame } from '../src/view/frame';
-import { formatCountdown } from '../src/view/format';
+import { formatCountdown } from 'busybar-kit/format';
 import { frameOptions, schedule, wideOf } from './helpers';
 
 const NOW = Date.UTC(2026, 7, 16, 6, 0, 0);

@@ -1,9 +1,14 @@
 import type { BarDisplay } from './bar/display';
-import { errorMessage, isForbidden } from './bar/errors';
+import { errorMessage, isForbidden } from 'busybar-kit/errors';
 import { BACK } from './bar/layout';
 import type { Config } from './config';
-import { detectEvent, initialEventState, type EventState } from './domain/events';
-import { EventTicker } from './domain/ticker';
+import {
+  detectEvent,
+  initialEventState,
+  type EventState,
+  type MatchEvent,
+} from './domain/events';
+import { EventTicker } from 'busybar-kit/ticker';
 import {
   applyResult,
   beginBreak,
@@ -45,7 +50,7 @@ export class App {
   private readonly heroes: HeroCatalog;
   private readonly display: BarDisplay;
   private readonly logger: Logger;
-  private readonly ticker = new EventTicker();
+  private readonly ticker = new EventTicker<MatchEvent>();
 
   private snapshot: MatchSnapshot = idleSnapshot();
   private schedule: Schedule | null = null;

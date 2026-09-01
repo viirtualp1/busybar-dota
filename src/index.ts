@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { App } from './app';
 import { BarDisplay, createBusyBar } from './bar/display';
-import { errorMessage } from './bar/errors';
+import { errorMessage } from 'busybar-kit/errors';
 import { loadConfig, loadEnvFile } from './config';
 import { HeroCatalog } from './dota/heroes';
 import { DemoResultLookup, MatchResultLookup } from './dota/match-result';

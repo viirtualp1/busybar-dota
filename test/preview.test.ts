@@ -3,8 +3,7 @@ import { test } from 'node:test';
 import { backElements, frontElements } from '../src/bar/elements';
 import { BACK, FRONT } from '../src/bar/layout';
 import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types';
-import { Bitmap, parseColor } from '../src/preview/png';
-import { renderBack, renderFront } from '../src/preview/raster';
+import { type Bitmap, renderBack, renderFront } from 'busybar-kit/preview';
 import { buildFrame } from '../src/view/frame';
 
 import { frameOptions } from './helpers';
@@ -32,12 +31,8 @@ function pixel(bitmap: Bitmap, x: number, y: number) {
   };
 }
 
-test('colours parse with and without an alpha byte', () => {
-  assert.deepEqual(parseColor('#FF8040FF'), { r: 255, g: 128, b: 64, a: 255 });
-  assert.deepEqual(parseColor('#FF8040'), { r: 255, g: 128, b: 64, a: 255 });
-  assert.equal(parseColor('#00000000').a, 0);
-  assert.equal(parseColor('nonsense').a, 0);
-});
+// The encoder, the colour parser and scaling are busybar-kit's own tests.
+// What matters here is that this app's frames land on the panel correctly.
 
 test('the rendered displays are exactly device sized', () => {
   const frame = buildFrame(snapshot(), options);
@@ -67,23 +62,4 @@ test('the back is flattened to grey, matching the real OLED', () => {
       assert.equal(g, b, `expected grey at ${x},${y}`);
     }
   }
-});
-
-test('the encoder emits a real PNG signature and IEND', () => {
-  const png = new Bitmap(4, 2).toPng();
-  assert.deepEqual(
-    [...png.subarray(0, 8)],
-    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
-  );
-  assert.equal(png.subarray(png.length - 8, png.length - 4).toString('ascii'), 'IEND');
-});
-
-test('scaling keeps pixels square and countable', () => {
-  const bitmap = new Bitmap(2, 1, { r: 0, g: 0, b: 0, a: 255 });
-  bitmap.set(1, 0, { r: 255, g: 255, b: 255, a: 255 });
-  const scaled = bitmap.scale(4);
-  assert.equal(scaled.width, 8);
-  assert.equal(scaled.height, 4);
-  assert.equal(pixel(scaled, 0, 0).r, 0);
-  assert.equal(pixel(scaled, 7, 3).r, 255);
 });

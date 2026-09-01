@@ -2,7 +2,7 @@ import { BusyBar, type DisplayDrawParams } from '@busy-app/busy-lib';
 import type { MatchEvent, MatchEventKind } from '../domain/events';
 import type { DotaFrame } from '../view/frame';
 import { backElements, frontElements } from './elements';
-import { isClientError, isLowPriority, toBarError } from './errors';
+import { isClientError, isLowPriority, toBarError } from 'busybar-kit/errors';
 
 export const APP_NAME = 'dota';
 

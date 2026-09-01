@@ -1,15 +1,16 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  type BarConfig,
+  DEFAULTS as BAR_DEFAULTS,
+  LIMITS as BAR_LIMITS,
+  loadBarConfig,
+} from 'busybar-kit/config';
 import type { ScheduleKind } from './dota/schedule/index';
-import type { TickerStyle } from './view/ticker-text';
+import type { TickerStyle } from 'busybar-kit/ticker';
 
-export type Config = {
-  busyAddr: string;
-  isCloud: boolean;
-  isUsb: boolean;
-  busyToken: string;
-  busyHttpPassword: string;
-  drawPriority: number;
+export { loadEnvFile } from 'busybar-kit/config';
+
+export type Config = BarConfig & {
   steamApiKey: string;
   leagueId: number;
   matchId: string;
@@ -32,102 +33,25 @@ export type LoadedConfig = {
 };
 
 export const DEFAULTS = {
-  usbAddr: '10.0.4.20',
-  cloudAddr: 'https://api.busy.app',
-  drawPriority: 40,
   pollMs: 5000,
-  frameMs: 200,
-  requestTimeoutMs: 10_000,
   killSoundGapMs: 4000,
   tickerChars: 17,
 } as const;
 
 const LIMITS = {
   pollMs: { min: 2000, max: 60_000 },
-  frameMs: { min: 50, max: 2000 },
-  drawPriority: { min: 0, max: 100 },
-  requestTimeoutMs: { min: 1000, max: 30_000 },
   leagueId: { min: 0, max: 100_000_000 },
   killSoundGapMs: { min: 0, max: 60_000 },
   tickerChars: { min: 8, max: 40 },
 } as const;
-
-export function loadEnvFile(cwd = process.cwd()) {
-  const path = resolve(cwd, '.env');
-  if (!existsSync(path)) {
-    return;
-  }
-  process.loadEnvFile(path);
-}
-
-export function isCloudAddr(addr: string) {
-  return /api(?:\.(?:dev|test|stage))?\.busy\.app/i.test(addr);
-}
-
-export function isUsbAddr(addr: string) {
-  try {
-    const url = /^https?:\/\//i.test(addr) ? new URL(addr) : new URL(`http://${addr}`);
-    return url.hostname === DEFAULTS.usbAddr;
-  } catch {
-    return addr.includes(DEFAULTS.usbAddr);
-  }
-}
 
 export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   argv: readonly string[] = process.argv.slice(2),
 ): LoadedConfig {
   const warnings: string[] = [];
-  const read = (name: string) => env[name]?.trim() ?? '';
-
-  const number = (
-    name: string,
-    fallback: number,
-    limits: { min: number; max: number },
-  ) => {
-    const raw = read(name);
-    if (!raw) {
-      return fallback;
-    }
-    const value = Number(raw);
-    if (!Number.isFinite(value)) {
-      warnings.push(`${name}=${raw} is not a number, using ${fallback}`);
-      return fallback;
-    }
-    const clamped = Math.min(limits.max, Math.max(limits.min, Math.round(value)));
-    if (clamped !== value) {
-      warnings.push(
-        `${name}=${raw} is out of range ${limits.min}..${limits.max}, using ${clamped}`,
-      );
-    }
-    return clamped;
-  };
-
-  const token = read('BUSY_TOKEN');
-  const httpPassword = read('BUSY_HTTP_PASSWORD');
-  const busyAddr = read('BUSY_ADDR') || (token ? DEFAULTS.cloudAddr : DEFAULTS.usbAddr);
-  const cloud = isCloudAddr(busyAddr);
-  const usb = isUsbAddr(busyAddr);
-
-  if (cloud && httpPassword) {
-    warnings.push('BUSY_HTTP_PASSWORD is ignored on cloud, only BUSY_TOKEN is used');
-  }
-
-  if (!cloud && token) {
-    warnings.push(
-      `BUSY_TOKEN is ignored for ${busyAddr}, that token only works on cloud`,
-    );
-  }
-
-  if (usb && httpPassword) {
-    warnings.push('BUSY_HTTP_PASSWORD is ignored over USB, no auth is required there');
-  }
-
-  if (!cloud && !usb && !httpPassword) {
-    warnings.push(
-      'Wi-Fi needs BUSY_HTTP_PASSWORD (Bar web UI → Network → HTTP API access)',
-    );
-  }
+  const { bar, env: reader } = loadBarConfig(env, warnings);
+  const { read, number } = reader;
 
   const steamApiKey = read('STEAM_API_KEY');
   const demo = argv.includes('--demo') || read('DEMO') === '1';
@@ -149,21 +73,16 @@ export function loadConfig(
   return {
     warnings,
     config: {
-      busyAddr,
-      isCloud: cloud,
-      isUsb: usb,
-      busyToken: cloud ? token : '',
-      busyHttpPassword: cloud || usb ? '' : httpPassword,
-      drawPriority: number('DRAW_PRIORITY', DEFAULTS.drawPriority, LIMITS.drawPriority),
+      ...bar,
       steamApiKey,
       leagueId: number('LEAGUE_ID', 0, LIMITS.leagueId),
       matchId: read('MATCH_ID'),
       pollMs: number('POLL_MS', DEFAULTS.pollMs, LIMITS.pollMs),
-      frameMs: number('FRAME_MS', DEFAULTS.frameMs, LIMITS.frameMs),
+      frameMs: number('FRAME_MS', BAR_DEFAULTS.frameMs, BAR_LIMITS.frameMs),
       requestTimeoutMs: number(
         'REQUEST_TIMEOUT_MS',
-        DEFAULTS.requestTimeoutMs,
-        LIMITS.requestTimeoutMs,
+        BAR_DEFAULTS.requestTimeoutMs,
+        BAR_LIMITS.requestTimeoutMs,
       ),
       demo,
       sounds: read('SOUNDS') !== '0',

@@ -1,20 +1,14 @@
+import { BASE_COLORS } from 'busybar-kit/colors';
+
 export const COLORS = {
-  white: '#FFFFFFFF',
-  transparent: '#00000000',
+  ...BASE_COLORS,
   radiant: '#3FBF5FFF',
   dire: '#E14B3AFF',
   radiantFill: '#0C2E17FF',
   direFill: '#33100BFF',
-  muted: '#9AA0A6FF',
-  dim: '#6B7075FF',
-  backText: '#E6E6E6FF',
-  backDivider: '#5A5A5AFF',
-  clock: '#D8DCE0FF',
   ledRadiant: '#3FBF5FFF',
   ledDire: '#E14B3AFF',
   ledStart: '#FFFFFFFF',
   ledRoshan: '#B36BFFFF',
   ledBarracks: '#FFD400FF',
-  ticker: '#FFFFFFFF',
-  panelDark: '#000000FF',
 } as const;

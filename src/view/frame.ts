@@ -1,9 +1,6 @@
+import { fittingChars } from 'busybar-kit/device';
 import { BACK, FONT_WIDTH, FRONT, radiantFillWidth } from '../bar/layout';
-import {
-  fittingChars,
-  tickerLine as renderTickerLine,
-  type TickerStyle,
-} from './ticker-text';
+import { tickerLine as renderTickerLine, type TickerStyle } from 'busybar-kit/ticker';
 import type { MatchEvent, MatchEventKind } from '../domain/events';
 import type { HeroCatalog } from '../dota/heroes';
 import {
@@ -22,7 +19,7 @@ import {
   formatKda,
   formatStartDate,
   formatStartTime,
-} from './format';
+} from 'busybar-kit/format';
 
 export type BackCell = { hero: string; stats: string };
 

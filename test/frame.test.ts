@@ -8,7 +8,7 @@ import {
   type MatchSnapshot,
 } from '../src/dota/types';
 import { buildFrame } from '../src/view/frame';
-import { formatClock, formatGold } from '../src/view/format';
+import { formatClock, formatGold } from 'busybar-kit/format';
 
 import { frameOptions, heroes, pairOf } from './helpers';
 

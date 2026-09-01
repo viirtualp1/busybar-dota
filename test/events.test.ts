@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { detectEvent, initialEventState, stateOf } from '../src/domain/events';
-import { EventTicker } from '../src/domain/ticker';
+import {
+  detectEvent,
+  initialEventState,
+  stateOf,
+  type MatchEvent,
+} from '../src/domain/events';
+import { EventTicker } from 'busybar-kit/ticker';
 import { emptyTeam, idleSnapshot, type MatchSnapshot } from '../src/dota/types';
 
 const ALL_TOWERS = 0b111_1111_1111;
@@ -178,7 +183,7 @@ test('losing the source is a match end, and staying idle is silent', () => {
 });
 
 test('the ticker holds an event, then gets out of the way', () => {
-  const ticker = new EventTicker(1000);
+  const ticker = new EventTicker<MatchEvent>(1000);
   const tower = detectEvent(stateOf(snapshot()), withDireTowers(ALL_TOWERS & ~1)).event;
   assert.equal(ticker.push(tower, 0), true);
   assert.equal(ticker.active(500)?.event.kind, 'tower');
@@ -186,7 +191,7 @@ test('the ticker holds an event, then gets out of the way', () => {
 });
 
 test('a kill cannot cut a Roshan line short, but a rax can', () => {
-  const ticker = new EventTicker(1000);
+  const ticker = new EventTicker<MatchEvent>(1000);
   const roshan = detectEvent(
     stateOf(snapshot({ roshanRespawnSec: 0 })),
     snapshot({ roshanRespawnSec: 500 }),
