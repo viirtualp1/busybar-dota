@@ -13,6 +13,8 @@ import {
   applyResult,
   beginBreak,
   isBreakExpired,
+  isSeriesOver,
+  isShowingResult,
   type SeriesBreak,
 } from './domain/series';
 import type { HeroCatalog } from './dota/heroes';
@@ -63,6 +65,7 @@ export class App {
   private running = false;
   private loops: Promise<void>[] = [];
   private warnings = new Map<string, { message: string; at: number }>();
+  private blanked = false;
 
   constructor(deps: AppDeps) {
     this.config = deps.config;
@@ -235,25 +238,50 @@ export class App {
     while (this.running) {
       const now = this.now();
       try {
-        await this.display.push(
-          buildFrame(this.snapshot, {
-            heroes: this.heroes,
-            maxRows: BACK.maxRows,
-            ticker: this.ticker.active(now),
-            nowEpochMs: Date.now(),
-            schedule: this.schedule,
-            seriesBreak: this.seriesBreak,
-            idleNote: this.idleNote,
-            tickerStyle: this.config.tickerStyle,
-            tickerChars: this.config.tickerChars,
-          }),
-        );
+        if (this.wantsScreen()) {
+          this.blanked = false;
+          await this.display.push(
+            buildFrame(this.snapshot, {
+              heroes: this.heroes,
+              maxRows: BACK.maxRows,
+              ticker: this.ticker.active(now),
+              nowEpochMs: Date.now(),
+              schedule: this.schedule,
+              seriesBreak: this.seriesBreak,
+              idleNote: this.idleNote,
+              tickerStyle: this.config.tickerStyle,
+              tickerChars: this.config.tickerChars,
+            }),
+          );
+        } else {
+          await this.blank();
+        }
       } catch (error) {
         this.warnRepeated('draw', `BUSY Bar draw failed: ${errorMessage(error)}`);
       }
 
       await this.sleep(this.config.frameMs);
     }
+  }
+
+  private wantsScreen() {
+    if (this.snapshot.live) {
+      return true;
+    }
+    if (!this.seriesBreak) {
+      return false;
+    }
+    const now = Date.now();
+    return isShowingResult(this.seriesBreak, now) || !isSeriesOver(this.seriesBreak);
+  }
+
+  private async blank() {
+    if (this.blanked) {
+      return;
+    }
+    await this.display.blank();
+    this.blanked = true;
+    this.logger.info('Idle — display released');
   }
 
   private warnRepeated(key: string, message: string) {

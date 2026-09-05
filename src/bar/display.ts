@@ -128,6 +128,12 @@ export class BarDisplay {
     }
   }
 
+  async blank() {
+    this.queued = null;
+    this.markStale();
+    await this.bar.DisplayClear({ application_name: APP_NAME });
+  }
+
   async clear() {
     this.stop();
     this.lastKey = '';
