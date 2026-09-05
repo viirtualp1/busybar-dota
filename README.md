@@ -1,5 +1,8 @@
 # busybar-dota
 
+> [!IMPORTANT]
+> **Unofficial community project.** Built and maintained by [@viirtualp1](https://github.com/viirtualp1), **not** an official Flipper Devices / BUSY product, and not affiliated with, endorsed by, or supported by them. "BUSY Bar" remains their trademark. For the real hardware and official apps, visit **[busy.app](https://busy.app/)**.
+
 Live Dota 2 pro matches on a [BUSY Bar](https://busy.app/). Built for The
 International, works for any pro game.
 
