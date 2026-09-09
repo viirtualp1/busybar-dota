@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "description": "Live Dota 2 pro match on BUSY Bar",
   "license": "MIT",
+  "author": "viirtualp1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viirtualp1/busybar-dota.git"
+  },
+  "bugs": {
+    "url": "https://github.com/viirtualp1/busybar-dota/issues"
+  },
+  "homepage": "https://github.com/viirtualp1/busybar-dota#readme",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -11,7 +20,9 @@
   "files": [
     "dist",
     "README.md",
-    ".env.example"
+    "LICENSE",
+    ".env.example",
+    "schedule.example.json"
   ],
   "keywords": [
     "dota2",
@@ -39,11 +50,12 @@
     "start": "npm run build && node dist/index.js",
     "shot": "tsx src/preview.ts",
     "stratz:check": "tsx src/stratz-check.ts",
-    "schedule:check": "tsx src/schedule-check.ts"
+    "schedule:check": "tsx src/schedule-check.ts",
+    "prepublishOnly": "npm run check && npm run build"
   },
   "dependencies": {
     "@busy-app/busy-lib": "^0.18.0",
-    "busybar-kit": "file:../busybar-kit"
+    "busybar-kit": "^1.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
