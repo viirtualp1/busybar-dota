@@ -1,7 +1,6 @@
 import { defineConfigSpec, integerIn, matching, required } from 'busybar-kit/config-spec';
 
-/** `06:00` — a wall-clock time in the file's own timezone. */
-const wallClock = matching(/^\d{1,2}:\d{2}$/, 'a wall-clock time, like 06:00');
+const wallClock = matching('^\\d{1,2}:\\d{2}$', 'a wall-clock time, like 06:00');
 
 export default defineConfigSpec({
   name: 'dota',
@@ -11,10 +10,9 @@ export default defineConfigSpec({
       kind: 'list',
       file: 'schedule.json',
       title: 'Schedule',
-      // The matches sit under a key, beside settings for the whole file — and
-      // the `_comment` block explaining the format has to survive a write.
       at: 'matches',
       empty: 'No matches yet — copy one off Liquipedia.',
+      reloads: 'live',
       header: [
         {
           key: 'timezone',
@@ -23,7 +21,7 @@ export default defineConfigSpec({
           placeholder: 'Asia/Tbilisi',
           hint: 'Whatever zone your source shows. IANA name or an offset',
           required: true,
-          validate: required('A timezone'),
+          rules: [required('A timezone')],
         },
         {
           key: 'date',
@@ -31,13 +29,10 @@ export default defineConfigSpec({
           type: 'text',
           placeholder: '2026-09-10',
           hint: 'The default for the file; a match can override it',
-          validate: matching(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
+          rules: [matching('^\\d{4}-\\d{2}-\\d{2}$', 'YYYY-MM-DD')],
         },
       ],
-      summary: (entry) =>
-        [entry.time, entry.teams, entry.stage, entry.bo ? `BO${entry.bo}` : '']
-          .filter(Boolean)
-          .join('  '),
+      summary: '{time}  {teams}  {stage}  BO{bo}',
       fields: [
         {
           key: 'teams',
@@ -46,7 +41,7 @@ export default defineConfigSpec({
           placeholder: 'Team Spirit vs Falcons',
           required: true,
           hint: 'One field. Tags are derived unless you set them',
-          validate: required('Both teams'),
+          rules: [required('Both teams')],
         },
         {
           key: 'time',
@@ -55,7 +50,7 @@ export default defineConfigSpec({
           placeholder: '06:00',
           required: true,
           hint: 'Wall clock, in the timezone set above',
-          validate: wallClock,
+          rules: [wallClock],
         },
         {
           key: 'stage',
@@ -69,7 +64,7 @@ export default defineConfigSpec({
           label: 'Best of',
           type: 'number',
           placeholder: '3',
-          validate: integerIn(1, 7),
+          rules: [integerIn(1, 7)],
         },
         {
           key: 'date',
@@ -77,7 +72,7 @@ export default defineConfigSpec({
           type: 'text',
           advanced: true,
           hint: 'For a late-night slot that rolls past midnight',
-          validate: matching(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
+          rules: [matching('^\\d{4}-\\d{2}-\\d{2}$', 'YYYY-MM-DD')],
         },
       ],
     },
@@ -85,6 +80,7 @@ export default defineConfigSpec({
       kind: 'env',
       file: '.env',
       title: 'Settings',
+      reloads: 'restart',
       fields: [
         {
           key: 'STEAM_API_KEY',
@@ -98,7 +94,7 @@ export default defineConfigSpec({
           type: 'number',
           placeholder: '18323',
           hint: '0 follows whatever is live',
-          validate: integerIn(0, 100_000_000),
+          rules: [integerIn(0, 100_000_000)],
         },
         {
           key: 'SCHEDULE_SOURCE',
@@ -146,14 +142,14 @@ export default defineConfigSpec({
           label: 'How often the source is asked',
           type: 'number',
           advanced: true,
-          validate: integerIn(2000, 60_000),
+          rules: [integerIn(2000, 60_000)],
         },
         {
           key: 'TICKER_CHARS',
           label: 'Characters on the ticker line',
           type: 'number',
           advanced: true,
-          validate: integerIn(8, 40),
+          rules: [integerIn(8, 40)],
         },
       ],
     },
