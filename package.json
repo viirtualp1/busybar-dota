@@ -38,6 +38,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && tsc -p tsconfig.build.json && busybar-fix-esm && busybar-emit-spec",
+    "prepack": "npm run build",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
